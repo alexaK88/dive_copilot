@@ -1,0 +1,314 @@
+{
+  "name": "Dive Copilot",
+
+  "system_prompt": "@file:prompts/dive_copilot.txt",
+  "greeting": "Dive Copilot online. Ready for mission support.",
+
+  "voice": {
+    "voice_id": "anna"
+  },
+
+  "input": {
+    "transcription_mode": "balanced",
+    "transcription_prompt": "A scientific underwater dive mission. The diver is conducting a marine biodiversity and reef survey and may report species, counts, coral condition, depth, transects, survey markers, equipment and underwater observations.",
+
+    "keyterms": [
+      "transect",
+      "Acropora",
+      "Porites",
+      "lionfish",
+      "Pterois volitans",
+      "bleaching",
+      "substrate",
+      "quadrant",
+      "starboard",
+      "BCD",
+      "B3",
+      "B4",
+      "B5"
+    ],
+
+    "voice_focus": "near-field",
+    "voice_focus_threshold": 0.8
+  },
+
+  "tools": [
+    {
+      "name": "get_mission",
+      "description": "Retrieve the current dive mission, objectives and mission tasks. Use when the diver asks what the mission is, what they should survey, or what work remains.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "execution_mode": "interactive",
+      "timeout_seconds": 15,
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/mission",
+        "http_method": "GET"
+      }
+    },
+
+    {
+      "name": "get_dive_state",
+      "description": "Retrieve simulated current dive telemetry including depth, dive time, transect, marker, connection state and current task. Use whenever the diver asks about their current dive state.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "execution_mode": "interactive",
+      "timeout_seconds": 15,
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/dive-state",
+        "http_method": "GET"
+      }
+    },
+
+    {
+      "name": "log_observation",
+      "description": "Record an observation made by the diver. Use whenever the diver asks to log, record, mark or note something they observe. Current depth, transect, marker and timestamp are automatically attached by the backend.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "Short observation category such as species, coral, structure, environment or equipment."
+          },
+          "description": {
+            "type": "string",
+            "description": "Concise description of what the diver observed."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number observed when relevant."
+          }
+        },
+        "required": [
+          "category",
+          "description"
+        ]
+      },
+      "execution_mode": "interactive",
+      "timeout_seconds": 15,
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations",
+        "http_method": "POST"
+      }
+    },
+
+    {
+      "name": "get_observations",
+      "description": "Retrieve all observations recorded during the current dive. Use when the diver asks what has already been logged, recorded or observed.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "execution_mode": "interactive",
+      "timeout_seconds": 15,
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations",
+        "http_method": "GET"
+      }
+    },
+
+    {
+      "name": "correct_observation",
+
+      "description": "Correct an observation that was already recorded. Use this when the diver says they made a mistake, changes something they just reported, says phrases such as 'wait', 'actually', 'I meant', 'make that', 'correct that', or otherwise clearly modifies an existing observation. If observation_id is omitted, the most recently logged observation will be corrected.",
+
+      "parameters": {
+        "type": "object",
+
+        "properties": {
+          "observation_id": {
+            "type": "integer",
+            "description": "ID of the observation to modify. Omit this when the diver is clearly correcting the most recent observation."
+          },
+
+          "category": {
+            "type": "string",
+            "description": "Corrected category. Only provide this when the category itself changed."
+          },
+
+          "description": {
+            "type": "string",
+            "description": "Corrected description. Only provide this when the observation description changed."
+          },
+
+          "count": {
+            "type": "integer",
+            "description": "Corrected number of items or organisms observed. Only provide this when the count changed."
+          }
+        },
+
+        "required": []
+      },
+
+      "execution_mode": "interactive",
+
+      "timeout_seconds": 15,
+
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations/correct",
+        "http_method": "POST"
+      }
+    },
+    {
+      "name": "complete_task",
+
+      "description": "Mark a dive mission task as completed. Use this when the diver clearly states that they have finished, completed, or are done with a mission task. If the diver does not clearly identify which task they completed, retrieve the mission first before using this tool.",
+
+      "parameters": {
+        "type": "object",
+
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The exact mission task ID, for example task-1."
+          }
+        },
+
+        "required": [
+          "task_id"
+        ]
+      },
+
+      "execution_mode": "interactive",
+
+      "timeout_seconds": 15,
+
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/tasks/complete",
+        "http_method": "POST"
+      }
+    },
+    {
+      "name": "message_surface",
+
+      "description": "Send a deliberate message from the diver to the surface team. Use only when the diver explicitly asks to tell, notify, inform, report, or send information to surface. Include only the content clearly intended for surface. Exclude filler, acknowledgements, conversational control phrases, and unrelated speech. Do not append later speech unless the diver explicitly modifies the message.",
+      "parameters": {
+        "type": "object",
+
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "The message that should be communicated to the surface team."
+          },
+
+          "priority": {
+            "type": "string",
+            "enum": [
+              "routine",
+              "attention",
+              "urgent"
+            ],
+            "description": "Message priority. Use routine by default. Use attention when the diver reports an important operational change. Use urgent only when the diver explicitly indicates urgency or an emergency."
+          }
+        },
+
+        "required": [
+          "message",
+          "priority"
+        ]
+      },
+
+      "execution_mode": "interactive",
+
+      "timeout_seconds": 10,
+
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/messages",
+        "http_method": "POST"
+      }
+    },
+    {
+      "name": "update_dive_position",
+
+      "description": "Update the diver's current mission position when the diver explicitly states that they have reached, entered, moved to, or are currently at a different transect or marker. Also use this when the diver corrects their current position.",
+
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "transect": {
+            "type": "string",
+            "description": "Current transect, when explicitly provided."
+          },
+          "marker": {
+            "type": "string",
+            "description": "Current mission marker, for example B3 or B5."
+          }
+        },
+        "required": []
+      },
+
+      "execution_mode": "interactive",
+      "timeout_seconds": 10,
+
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/dive-state/position",
+        "http_method": "POST"
+      }
+    },
+    {
+      "name": "ask_surface",
+
+      "description": "Send a deliberate question from the diver to the surface team. Use when the diver explicitly asks you to ask, check with, or request information from surface. Include only the question intended for surface. Do not include filler, politeness phrases, unrelated later speech, or conversational control language.",
+
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "The question to send to the surface team."
+          },
+
+          "priority": {
+            "type": "string",
+            "enum": [
+              "routine",
+              "attention",
+              "urgent"
+            ],
+            "description": "Priority of the question. Use routine unless the diver clearly indicates greater urgency."
+          }
+        },
+
+        "required": [
+          "question",
+          "priority"
+        ]
+      },
+
+      "execution_mode": "interactive",
+
+      "timeout_seconds": 10,
+
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/questions",
+        "http_method": "POST"
+      }
+    },
+    {
+      "name": "get_surface_messages",
+
+      "description": "Retrieve recent messages received from the surface team. Use when the diver asks whether surface replied, what surface said, whether there is an update from surface, or requests information previously supplied by surface.",
+
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+
+      "execution_mode": "interactive",
+
+      "timeout_seconds": 10,
+
+      "http": {
+        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/replies",
+        "http_method": "GET"
+      }
+    }
+  ]
+}
