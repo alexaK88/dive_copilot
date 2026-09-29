@@ -142,6 +142,83 @@ const PLAYBACK_WORKLET = `
 const blobUrl = (code) =>
   URL.createObjectURL(new Blob([code], { type: 'application/javascript' }))
 
+let latencyTurn = null
+let latencyTurnNumber = 0
+
+function startLatencyTurn() {
+  latencyTurn = {
+    id: ++latencyTurnNumber,
+
+    stoppedAt: performance.now(),
+
+    transcriptAt: null,
+    toolCallAt: null,
+
+    firstReplyStartedAt: null,
+    lastReplyStartedAt: null,
+
+    firstAudioAt: null,
+    replyDoneAt: null,
+
+    replyDoneCount: 0,
+  }
+}
+
+function msBetween(a, b) {
+  if (a == null || b == null) {
+    return null
+  }
+
+  return Math.round(b - a)
+}
+
+function printLatencyTurn() {
+  if (!latencyTurn) {
+    return
+  }
+
+  console.table({
+    "speech stopped → final transcript":
+      msBetween(
+        latencyTurn.stoppedAt,
+        latencyTurn.transcriptAt
+      ),
+
+    "speech stopped → tool call":
+      msBetween(
+        latencyTurn.stoppedAt,
+        latencyTurn.toolCallAt
+      ),
+
+    "speech stopped → first reply phase":
+      msBetween(
+        latencyTurn.stoppedAt,
+        latencyTurn.firstReplyStartedAt
+      ),
+
+    "speech stopped → first audio":
+      msBetween(
+        latencyTurn.stoppedAt,
+        latencyTurn.firstAudioAt
+      ),
+
+    "final transcript → first audio":
+      msBetween(
+        latencyTurn.transcriptAt,
+        latencyTurn.firstAudioAt
+      ),
+
+    "last reply start → first audio":
+      msBetween(
+        latencyTurn.lastReplyStartedAt,
+        latencyTurn.firstAudioAt
+      ),
+
+    "reply.done events":
+      latencyTurn.replyDoneCount,
+  })
+}
+
 let ws, captureCtx, playbackCtx, playback, mic, callStart, timer
 
 // --- microphones ---
@@ -334,31 +411,111 @@ async function start() {
 }
 
         case 'input.speech.started':
-          // Barge-in: empty the ring buffer so the agent stops mid-word.
-          playback?.port.postMessage('stop')
-          setStatus('listening')
-          logEvent('down', msg.type)
-          break
+            playback?.port.postMessage('stop')
 
-        case 'reply.started':
-          setStatus('speaking')
-          logEvent('down', msg.type)
-          break
+            setStatus('listening')
+
+            logEvent(
+              'down',
+              msg.type
+            )
+
+            break
+         case 'input.speech.stopped':
+            startLatencyTurn()
+
+            setStatus('processing')
+
+            logEvent(
+              'down',
+              msg.type
+            )
+
+            break
+
+        case 'reply.started': {
+            const now = performance.now()
+
+            if (latencyTurn) {
+              if ( latencyTurn.firstReplyStartedAt == null) {
+                latencyTurn.firstReplyStartedAt =
+                  now
+              }
+              latencyTurn.lastReplyStartedAt = now
+            }
+
+            setStatus('speaking')
+            logEvent('down', msg.type)
+            break
+          }
 
         case 'reply.audio': {
-          const raw = atob(msg.data)
-          const bytes = new Uint8Array(raw.length)
-          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
-          playback?.port.postMessage(bytes.buffer, [bytes.buffer])
-          logEvent('down', msg.type)
-          break
-        }
+
+            if (
+              latencyTurn &&
+              latencyTurn.firstAudioAt == null
+            ) {
+              latencyTurn.firstAudioAt =
+                performance.now()
+
+              printLatencyTurn()
+            }
+
+            const raw =
+              atob(msg.data)
+
+            const bytes =
+              new Uint8Array(
+                raw.length
+              )
+
+            for (
+              let i = 0;
+              i < raw.length;
+              i++
+            ) {
+              bytes[i] =
+                raw.charCodeAt(i)
+            }
+
+            playback?.port.postMessage(
+              bytes.buffer,
+              [bytes.buffer]
+            )
+
+            logEvent(
+              'down',
+              msg.type
+            )
+
+            break
+          }
 
         case 'reply.done':
-          setStatus('listening')
-          if (msg.status === 'interrupted') playback?.port.postMessage('stop')
-          logEvent('down', msg.type, msg.status)
-          break
+            if (latencyTurn) {
+              latencyTurn.replyDoneCount += 1
+
+              latencyTurn.replyDoneAt =
+                performance.now()
+            }
+
+            setStatus('listening')
+
+            if (
+              msg.status === 'interrupted'
+            ) {
+              playback?.port.postMessage(
+                'stop'
+              )
+            }
+
+            logEvent(
+              'down',
+              msg.type,
+              msg.status
+            )
+
+            break
 
         // text is the full transcript so far, so it replaces.
         case 'transcript.user.delta':
@@ -378,9 +535,26 @@ async function start() {
           break
 
         case 'transcript.user':
-          addLine('you', msg.text)
-          logEvent('down', msg.type, msg.text)
-          break
+            if (
+              latencyTurn &&
+              latencyTurn.transcriptAt == null
+            ) {
+              latencyTurn.transcriptAt =
+                performance.now()
+            }
+
+            addLine(
+              'you',
+              msg.text
+            )
+
+            logEvent(
+              'down',
+              msg.type,
+              msg.text
+            )
+
+            break
 
         case 'transcript.agent':
           printedReply = msg.reply_id ?? printedReply
@@ -389,12 +563,32 @@ async function start() {
           break
 
         case 'tool.call': {
-          // http tools run on AssemblyAI's side; no result comes back here.
-          const args = JSON.stringify(msg.arguments ?? {})
-          addLine('tool', `${msg.name}(${args})`)
-          logEvent('down', msg.type, `${msg.name} ${args}`)
-          break
-        }
+            if (
+              latencyTurn &&
+              latencyTurn.toolCallAt == null
+            ) {
+              latencyTurn.toolCallAt =
+                performance.now()
+            }
+
+            const args =
+              JSON.stringify(
+                msg.arguments ?? {}
+              )
+
+            addLine(
+              'tool',
+              `${msg.name}(${args})`
+            )
+
+            logEvent(
+              'down',
+              msg.type,
+              `${msg.name} ${args}`
+            )
+
+            break
+          }
 
         case 'session.ended':
           logEvent('down', msg.type)

@@ -151,7 +151,7 @@
     },
     {
       "name": "message_surface",
-      "description": "Send a deliberate statement from the diver to the surface team. Use only when the diver explicitly asks to tell, notify, inform, message, report, or send information to surface. Use ask_surface instead when the intended content is a question. Send only the content clearly intended for surface; exclude filler, acknowledgements, and conversational control phrases. Do not send incomplete messages. Do not treat sending a location message as a position update unless the diver also clearly confirms that location as their current physical position. If a previously sent surface message is later corrected, send a new correction message rather than pretending the original was unsent.",
+      "description": "Send a deliberate statement from the diver to the surface team. Use only when the diver explicitly asks to tell, notify, inform, message, report, or send information to surface. Use ask_surface instead when the intended content is a question. Send only the content clearly intended for surface; exclude filler, acknowledgements, and conversational control phrases. Do not send incomplete messages. Do not treat sending a location message as a position update unless the diver also clearly confirms that location as their current physical position. If a previously sent surface message is later corrected, send a new correction message rather than pretending the original was unsent. Do not call this tool when the intended message is only a noun,\nlocation, fragment, or incomplete thought, such as \"visibility\",\n\"C2\", or \"equipment\". Ask one short clarification instead.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -183,7 +183,7 @@
     },
     {
       "name": "update_dive_position",
-      "description": "Update the diver's confirmed current physical marker or transect. Call only when the diver clearly states that they are currently at a location, have reached or arrived at it, or are explicitly correcting their current position. Do not call for intended destinations, required movement, future locations, navigation instructions, planned next markers, or movement in progress. Examples that must NOT update position include 'I need to move to C4', 'I'm heading to C4', 'I'm moving toward C4', 'C4 is next', and 'move to C4'. The word 'now' alone does not prove arrival. A marker mentioned only as an observation location or inside a surface message does not update current position unless the diver separately confirms being there. If arrival is genuinely ambiguous, ask one short clarification before calling this tool.",
+      "description": "Update the diver's confirmed current physical marker or transect. Call only when the diver clearly states that they are currently at a location, have reached or arrived at it, or are explicitly correcting their current position. Do not call for intended destinations, required movement, future locations, navigation instructions, planned next markers, or movement in progress. Examples that must NOT update position include 'I need to move to C4', 'I'm heading to C4', 'I'm moving toward C4', 'C4 is next', and 'move to C4'. The word 'now' alone does not prove arrival. A marker mentioned only as an observation location or inside a surface message does not update current position unless the diver separately confirms being there. If arrival is genuinely ambiguous, ask one short clarification before calling this tool.This tool tracks only confirmed current position.\nThe system does not independently detect arrival or movement.\nDo not promise to monitor or announce future arrival.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -239,7 +239,7 @@
     },
     {
       "name": "get_surface_messages",
-      "description": "Retrieve actual messages or replies received from the surface team. Use when the diver asks whether surface replied, what surface said, whether there is an update from surface, or asks for information previously supplied by surface. Do not invent or infer a reply to a recently sent question. If no reply has been received, report that no surface reply is available yet. This tool is read-only.",
+      "description": "Retrieve the latest actual messages or replies from surface control.\nALWAYS call this tool whenever the diver asks whether surface has\nreplied, whether there is an update, or what surface said, even if\nthe same question was recently answered. Surface state can change\nbetween turns, so never answer these questions from conversation memory.",
       "parameters": {
         "type": "object",
         "properties": {},

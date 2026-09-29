@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 from http.client import HTTPException
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -125,6 +125,22 @@ def select_mission(selection: MissionSelection):
         "dive_state": current_dive_state(),
 
         "speech_context": get_mission_speech_context(ACTIVE_MISSION_KEY), }
+
+
+@app.middleware("http")
+async def measure_request_time(request: Request, call_next, ):
+    start = time.perf_counter()
+
+    response = await call_next(request)
+
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    print(f"[LATENCY] "
+          f"{request.method} "
+          f"{request.url.path} "
+          f"{elapsed_ms:.1f} ms")
+
+    return response
 
 
 @app.post("/api/tasks/complete")
