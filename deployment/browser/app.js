@@ -275,21 +275,63 @@ async function start() {
       ws.send(JSON.stringify({ type: 'session.update', session: { agent_id: AGENT.id } }))
       logEvent('up', 'session.update', AGENT.id)
     }
-
     ws.onmessage = ({ data }) => {
       const msg = JSON.parse(data)
       switch (msg.type) {
-        case 'session.ready':
-          ready = true
-          callStart = Date.now()
-          timer = setInterval(tick, 1000)
-          tick()
-          setStatus('listening')
-          $('btn').disabled = false
-          $('btn').textContent = 'End call'
-          $('btn').classList.add('live')
-          logEvent('down', msg.type, msg.session_id)
-          break
+        case 'session.ready': {
+  const speechContext =
+    window.DIVE_SPEECH_CONTEXT
+
+  if (speechContext) {
+    const keyterms =
+      speechContext.keyterms ?? []
+
+    const transcriptionPrompt =
+      speechContext.transcription_prompt ?? ''
+
+    ws.send(JSON.stringify({
+      type: 'session.update',
+      session: {
+        input: {
+          keyterms,
+          transcription_prompt:
+            transcriptionPrompt
+        }
+      }
+    }))
+
+    logEvent(
+      'up',
+      'mission.speech_context',
+      `${keyterms.length} keyterms loaded`
+    )
+  }
+
+  ready = true
+  callStart = Date.now()
+
+  timer =
+    setInterval(
+      tick,
+      1000
+    )
+
+  tick()
+
+  setStatus('listening')
+
+  $('btn').disabled = false
+  $('btn').textContent = 'End call'
+  $('btn').classList.add('live')
+
+  logEvent(
+    'down',
+    msg.type,
+    msg.session_id
+  )
+
+  break
+}
 
         case 'input.speech.started':
           // Barge-in: empty the ring buffer so the agent stops mid-word.

@@ -28,6 +28,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     margin: 0;
     min-height: 100vh;
@@ -161,21 +165,47 @@ h1 {
     display: grid;
 
     grid-template-columns:
-        minmax(500px, .95fr)
-        minmax(560px, 1.25fr);
+        minmax(460px, .95fr)
+        minmax(580px, 1.15fr);
 
-    gap: 18px;
+    gap: 16px;
 
-    min-height: 700px;
+    align-items: start;
+    min-height: 0;
 }
 
+.diver-column {
+    display: grid;
+    grid-template-rows:
+        minmax(520px, 560px)
+        180px;
+
+    gap: 16px;
+    min-width: 0;
+}
+
+.transcript-body {
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.observations-body {
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+.surface-messages {
+    max-height: 220px;
+    overflow-y: auto;
+}
 
 /* =======================================================
    DIVER POV / MASK
 ======================================================= */
 
 .diver-console {
-    min-height: 700px;
+    min-height: 520px;
+    height: 560px;
 
     position: relative;
 
@@ -491,7 +521,7 @@ h1 {
 }
 
 #current-task {
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.4;
 
     color: var(--text);
@@ -642,9 +672,15 @@ h1 {
 
 .surface-control {
     display: grid;
-    grid-template-rows: 1fr 0.85fr 0.85fr;
-    gap: 16px;
-    min-height: 700px;
+    grid-template-rows:
+        auto
+        minmax(190px, 1fr)
+        minmax(120px, .68fr)
+        minmax(220px, 1fr);
+
+    gap: 12px;
+    min-height: 0;
+    height: 756px;
 }
 
 .panel {
@@ -904,6 +940,271 @@ h1 {
 }
 
 
+
+/* -------------------------------------------------------
+   MISSION OVERVIEW
+------------------------------------------------------- */
+
+.mission-overview-body {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1.15fr)
+        minmax(220px, .85fr);
+
+    gap: 16px;
+    padding: 14px 15px;
+}
+
+.mission-overview-main {
+    min-width: 0;
+}
+
+.mission-name {
+    margin-top: 3px;
+
+    font-size: 16px;
+    font-weight: 600;
+
+    color: var(--text);
+}
+
+.mission-site {
+    margin-top: 4px;
+
+    color: var(--muted);
+
+    font-size: 11px;
+}
+
+.mission-current-task {
+    margin-top: 12px;
+    padding: 10px 12px;
+
+    border-left: 2px solid var(--cyan);
+
+    background:
+        rgba(4, 29, 38, .58);
+
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.mission-current-task .mini-label,
+.try-saying .mini-label,
+.progress-row .mini-label {
+    display: block;
+
+    margin-bottom: 5px;
+
+    color: var(--muted);
+
+    font-size: 9px;
+    letter-spacing: 1.35px;
+    text-transform: uppercase;
+}
+
+.progress-row {
+    margin-top: 12px;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin-bottom: 6px;
+
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.progress-track {
+    height: 6px;
+
+    overflow: hidden;
+
+    border-radius: 999px;
+
+    background:
+        rgba(120, 153, 164, .15);
+}
+
+.progress-fill {
+    width: 0;
+    height: 100%;
+
+    border-radius: inherit;
+
+    background: var(--green);
+
+    transition: width .25s ease;
+}
+
+.try-saying {
+    min-width: 0;
+
+    padding-left: 16px;
+
+    border-left:
+        1px solid rgba(24, 60, 72, .65);
+}
+
+.try-saying-list {
+    display: flex;
+    flex-direction: column;
+
+    gap: 7px;
+}
+
+.try-saying-item {
+    color: #bcd8df;
+
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.try-saying-item::before {
+    content: "›";
+
+    margin-right: 7px;
+
+    color: var(--cyan);
+}
+
+
+/* -------------------------------------------------------
+   MISSION ACTIVITY
+------------------------------------------------------- */
+
+.activity-list {
+    display: flex;
+    flex-direction: column;
+
+    gap: 8px;
+}
+
+.activity-item {
+    display: grid;
+
+    grid-template-columns:
+        58px
+        1fr;
+
+    gap: 10px;
+
+    align-items: start;
+
+    padding-bottom: 8px;
+
+    border-bottom:
+        1px solid rgba(24, 60, 72, .45);
+}
+
+.activity-time {
+    color: var(--muted);
+
+    font-size: 10px;
+}
+
+.activity-text {
+    color: var(--text);
+
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.activity-detail {
+    color: var(--cyan);
+}
+
+
+/* -------------------------------------------------------
+   SIMULATION / CONTROL CHROME
+------------------------------------------------------- */
+
+.simulation-badge {
+    color: var(--yellow);
+
+    font-size: 9px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+
+.controls {
+    position: sticky;
+    bottom: 10px;
+
+    z-index: 40;
+
+    padding: 10px 12px;
+
+    border: 1px solid var(--line);
+    border-radius: 12px;
+
+    background:
+        rgba(4, 17, 24, .92);
+
+    backdrop-filter:
+        blur(10px);
+}
+
+.controls-spacer {
+    flex: 1;
+}
+
+button.secondary-control {
+    color: var(--text);
+
+    background:
+        rgba(13, 34, 44, .95);
+
+    border: 1px solid var(--line);
+}
+
+button.secondary-control:hover {
+    border-color: var(--cyan);
+}
+
+button.danger-control {
+    color: #ffd8d8;
+
+    background:
+        rgba(92, 24, 31, .72);
+
+    border: 1px solid rgba(255, 114, 114, .35);
+}
+
+
+/* -------------------------------------------------------
+   VOICE STATE
+------------------------------------------------------- */
+
+.status.connecting {
+    color: var(--yellow);
+}
+
+.status.connecting::before {
+    background: var(--yellow);
+}
+
+.status.idle {
+    color: var(--muted);
+}
+
+
+/* -------------------------------------------------------
+   SMALLER SURFACE PANELS
+------------------------------------------------------- */
+
+.surface-control .panel-body {
+    padding: 12px 14px;
+}
+
+.surface-control textarea {
+    min-height: 58px;
+}
+
+
 /* -------------------------------------------------------
    CONTROLS
 ------------------------------------------------------- */
@@ -966,6 +1267,196 @@ button.live {
     display: none !important;
 }
 
+/* =======================================================
+   MISSION SELECTOR
+======================================================= */
+
+.mission-selector {
+    max-width: 1180px;
+    margin: 48px auto 30px;
+}
+
+.mission-selector-header {
+    margin-bottom: 28px;
+    text-align: center;
+}
+
+.mission-selector-eyebrow {
+    margin-bottom: 8px;
+
+    color: var(--cyan);
+
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.mission-selector-title {
+    margin: 0;
+
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.mission-selector-description {
+    max-width: 620px;
+
+    margin: 10px auto 0;
+
+    color: var(--muted);
+
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.mission-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 16px;
+}
+
+.mission-card {
+    height: auto;
+    min-height: 230px;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 22px;
+
+    color: var(--text);
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(13, 34, 44, .96),
+            rgba(5, 20, 27, .96)
+        );
+
+    border: 1px solid var(--line);
+    border-radius: 14px;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        border-color .2s ease,
+        transform .2s ease,
+        background .2s ease;
+}
+
+.mission-card:hover {
+    border-color: rgba(79, 227, 242, .65);
+
+    transform: translateY(-2px);
+}
+
+.mission-card.selected {
+    border-color: var(--cyan);
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(15, 55, 67, .96),
+            rgba(5, 24, 31, .96)
+        );
+
+    box-shadow:
+        inset 0 0 0 1px rgba(79, 227, 242, .18);
+}
+
+.mission-card-type {
+    margin-bottom: 14px;
+
+    color: var(--cyan);
+
+    font-size: 9px;
+    letter-spacing: 1.7px;
+    text-transform: uppercase;
+}
+
+.mission-card-name {
+    margin-bottom: 9px;
+
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.mission-card-summary {
+    flex: 1;
+
+    color: var(--muted);
+
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.55;
+}
+
+.mission-card-meta {
+    display: flex;
+
+    justify-content: space-between;
+    gap: 10px;
+
+    margin-top: 22px;
+    padding-top: 13px;
+
+    border-top:
+        1px solid rgba(24, 60, 72, .7);
+
+    color: var(--muted);
+
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: .5px;
+}
+
+.mission-selector-actions {
+    display: flex;
+    justify-content: center;
+
+    margin-top: 28px;
+}
+
+#start-simulation {
+    min-width: 220px;
+}
+
+#start-simulation:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
+
+.mission-selector-error {
+    grid-column: 1 / -1;
+
+    padding: 24px;
+
+    color: var(--red);
+
+    border: 1px solid rgba(255, 114, 114, .35);
+    border-radius: 12px;
+
+    text-align: center;
+}
+
+
+/* Mission selector responsive layout */
+
+@media(max-width: 900px) {
+
+    .mission-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mission-card {
+        min-height: 190px;
+    }
+}
 
 /* -------------------------------------------------------
    RESPONSIVE
@@ -983,6 +1474,47 @@ button.live {
             620px;
     }
 }
+
+
+@media(max-width: 1200px) {
+
+    .mission-overview-body {
+        grid-template-columns: 1fr;
+    }
+
+    .try-saying {
+        padding-left: 0;
+        padding-top: 12px;
+
+        border-left: 0;
+        border-top:
+            1px solid rgba(24, 60, 72, .65);
+    }
+}
+
+@media(max-width: 1000px) {
+
+    .diver-column {
+        grid-template-rows:
+            minmax(520px, 560px)
+            180px;
+    }
+
+    .surface-control {
+        height: auto;
+
+        grid-template-rows:
+            auto
+            240px
+            170px
+            300px;
+    }
+
+    .controls {
+        position: static;
+    }
+}
+
 
 </style>
 </head>
@@ -1033,14 +1565,71 @@ button.live {
 
 </header>
 
+<!-- ===================================================
+     MISSION SELECTOR
+=================================================== -->
+
+<section
+    id="mission-selector"
+    class="mission-selector">
+
+    <div class="mission-selector-header">
+
+        <div class="mission-selector-eyebrow">
+            Simulation Environment
+        </div>
+
+        <h2 class="mission-selector-title">
+            Choose a dive mission
+        </h2>
+
+        <p class="mission-selector-description">
+            Select a simulated underwater mission.
+            Dive Copilot will adapt its mission context,
+            tasks and telemetry to the selected scenario.
+        </p>
+
+    </div>
 
 
-<section class="dashboard">
+    <div
+        id="mission-grid"
+        class="mission-grid">
+
+        <div class="empty">
+            Loading available missions...
+        </div>
+
+    </div>
+
+
+    <div class="mission-selector-actions">
+
+        <button
+            id="start-simulation"
+            type="button"
+            disabled>
+
+            Start simulation
+
+        </button>
+
+    </div>
+
+</section>
+
+
+<section
+    class="dashboard"
+    id="dashboard"
+    hidden>
 
 
 <!-- ===================================================
      DIVER POV
 =================================================== -->
+
+<div class="diver-column">
 
 <section class="diver-console">
 
@@ -1054,6 +1643,12 @@ button.live {
 
     <div class="water-depth">
         simulated underwater view
+    </div>
+
+    <div
+        class="simulation-badge"
+        style="position:absolute; left:44px; top:86px; z-index:7;">
+        Simulated telemetry
     </div>
 
 
@@ -1198,6 +1793,33 @@ button.live {
 
 </section>
 
+<section class="panel mission-activity-panel">
+
+    <div class="panel-header">
+
+        <div class="panel-title">
+            Mission Activity
+        </div>
+
+        <div class="live-badge">
+            ACTIONS
+        </div>
+
+    </div>
+
+    <div
+        class="panel-body"
+        id="mission-activity">
+
+        <div class="empty">
+            Mission actions will appear here.
+        </div>
+
+    </div>
+
+</section>
+
+</div>
 
 
 <!-- ===================================================
@@ -1205,6 +1827,97 @@ button.live {
 =================================================== -->
 
 <section class="surface-control">
+
+
+    <section class="panel mission-overview-panel">
+
+        <div class="panel-header">
+
+            <div class="panel-title">
+                Active Mission
+            </div>
+
+            <div class="simulation-badge">
+                Simulation
+            </div>
+
+        </div>
+
+        <div class="mission-overview-body">
+
+            <div class="mission-overview-main">
+
+                <div
+                    class="mission-name"
+                    id="active-mission-name">
+                    Mission loading...
+                </div>
+
+                <div
+                    class="mission-site"
+                    id="active-mission-site">
+                </div>
+
+                <div class="mission-current-task">
+
+                    <span class="mini-label">
+                        Current task
+                    </span>
+
+                    <span id="surface-current-task">
+                        Waiting for mission state...
+                    </span>
+
+                </div>
+
+                <div class="progress-row">
+
+                    <div class="progress-header">
+
+                        <span class="mini-label">
+                            Mission progress
+                        </span>
+
+                        <span id="task-progress-count">
+                            0 / 0 complete
+                        </span>
+
+                    </div>
+
+                    <div class="progress-track">
+
+                        <div
+                            class="progress-fill"
+                            id="task-progress-fill">
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="try-saying">
+
+                <span class="mini-label">
+                    Try saying
+                </span>
+
+                <div
+                    class="try-saying-list"
+                    id="try-saying-list">
+
+                    <div class="try-saying-item">
+                        "What's my current task?"
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
 
 
     <section class="panel">
@@ -1299,7 +2012,7 @@ button.live {
                 <textarea
                     id="surface-reply"
                     placeholder="Message diver..."
-                    rows="3"></textarea>
+                    rows="2"></textarea>
 
                 <button id="send-surface-reply">
                     Send to diver
@@ -1318,7 +2031,10 @@ button.live {
 
 
 
-<div class="controls">
+<div
+    class="controls"
+    id="dive-controls"
+    hidden>
 
     <select
         id="mic"
@@ -1333,6 +2049,22 @@ button.live {
 
     <button id="btn">
         Start dive link
+    </button>
+
+    <div class="controls-spacer"></div>
+
+    <button
+        id="reset-simulation"
+        class="secondary-control"
+        type="button">
+        Reset simulation
+    </button>
+
+    <button
+        id="change-mission"
+        class="secondary-control"
+        type="button">
+        Change mission
     </button>
 
 </div>
@@ -1386,15 +2118,45 @@ window.AGENT = {{AGENT_JSON}}
    DIVE COPILOT DASHBOARD
 ===================================================== */
 
-const DIVE_API_BASE =
-    "https://collie-consensus-sphere.ngrok-free.dev";
+const DIVE_API_BASE = "http://localhost:8000";
 
 
 let previousObservationCount = null;
 let previousSurfaceReplyCount = null;
 let selectedSurfaceQuestionId = null;
 
+let selectedMissionId = null;
+let simulationStarted = false;
+
 let notificationTimer = null;
+
+let activeMissionData = null;
+let previousSurfaceMessageCount = null;
+let previousCompletedTaskCount = null;
+let previousDiveStateSnapshot = null;
+
+const MISSION_EXAMPLES = {
+    "reef-survey": [
+        "What's my current task?",
+        "I've reached marker B4.",
+        "Log three lionfish.",
+        "Tell surface visibility has dropped."
+    ],
+
+    "infrastructure-inspection": [
+        "What's my current task?",
+        "I've reached marker C2.",
+        "Record moderate corrosion.",
+        "Ask surface if they want a closer inspection."
+    ],
+
+    "marine-debris": [
+        "What's my current task?",
+        "I've reached marker D3.",
+        "Log two fishing nets.",
+        "Report hazardous debris to surface."
+    ]
+};
 
 
 
@@ -1427,6 +2189,428 @@ function formatDiveTime(seconds) {
         +
         String(remaining).padStart(2, "0")
     );
+
+}
+
+
+
+
+function activityTime() {
+
+    return new Date()
+        .toLocaleTimeString(
+            [],
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+            }
+        );
+
+}
+
+
+
+function addMissionActivity(
+    label,
+    detail = ""
+) {
+
+    const container =
+        document.getElementById(
+            "mission-activity"
+        );
+
+    if (!container) {
+        return;
+    }
+
+
+    const empty =
+        container.querySelector(
+            ".empty"
+        );
+
+    if (empty) {
+        empty.remove();
+    }
+
+
+    const item =
+        document.createElement(
+            "div"
+        );
+
+    item.className =
+        "activity-item";
+
+
+    const at =
+        document.createElement(
+            "div"
+        );
+
+    at.className =
+        "activity-time";
+
+    at.textContent =
+        activityTime();
+
+
+    const text =
+        document.createElement(
+            "div"
+        );
+
+    text.className =
+        "activity-text";
+
+    text.textContent =
+        label;
+
+
+    if (detail) {
+
+        const detailElement =
+            document.createElement(
+                "span"
+            );
+
+        detailElement.className =
+            "activity-detail";
+
+        detailElement.textContent =
+            ` · ${detail}`;
+
+        text.append(
+            detailElement
+        );
+
+    }
+
+
+    item.append(
+        at,
+        text
+    );
+
+    container.prepend(
+        item
+    );
+
+
+    while (
+        container.children.length > 40
+    ) {
+
+        container.lastElementChild
+            ?.remove();
+
+    }
+
+}
+
+
+
+function clearMissionActivity() {
+
+    const container =
+        document.getElementById(
+            "mission-activity"
+        );
+
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="empty">
+            Mission actions will appear here.
+        </div>
+    `;
+
+}
+
+
+
+function renderMissionExamples(
+    missionId
+) {
+
+    const container =
+        document.getElementById(
+            "try-saying-list"
+        );
+
+    if (!container) {
+        return;
+    }
+
+
+    const examples =
+        MISSION_EXAMPLES[
+            missionId
+        ]
+        ??
+        MISSION_EXAMPLES[
+            "reef-survey"
+        ];
+
+
+    container.innerHTML =
+        examples
+            .map(
+                example => `
+                    <div class="try-saying-item">
+                        “${escapeHtml(example)}”
+                    </div>
+                `
+            )
+            .join("");
+
+}
+
+
+
+function renderMissionStatus(
+    mission
+) {
+
+    if (!mission) {
+        return;
+    }
+
+
+    activeMissionData =
+        mission;
+
+
+    document
+        .getElementById(
+            "active-mission-name"
+        )
+        .textContent =
+        mission.name
+        ??
+        "Active mission";
+
+
+    document
+        .getElementById(
+            "active-mission-site"
+        )
+        .textContent =
+        mission.site
+        ??
+        "";
+
+
+    const tasks =
+        Array.isArray(
+            mission.tasks
+        )
+            ? mission.tasks
+            : [];
+
+
+    const completed =
+        tasks.filter(
+            task =>
+                task.completed
+        ).length;
+
+
+    const current =
+        tasks.find(
+            task =>
+                !task.completed
+        );
+
+
+    document
+        .getElementById(
+            "surface-current-task"
+        )
+        .textContent =
+        current?.description
+        ??
+        "Mission complete";
+
+
+    document
+        .getElementById(
+            "task-progress-count"
+        )
+        .textContent =
+        `${completed} / ${tasks.length} complete`;
+
+
+    const progress =
+        tasks.length
+            ? (
+                completed
+                /
+                tasks.length
+            ) * 100
+            : 0;
+
+
+    document
+        .getElementById(
+            "task-progress-fill"
+        )
+        .style.width =
+        `${progress}%`;
+
+
+    if (
+        previousCompletedTaskCount !== null
+        &&
+        completed >
+            previousCompletedTaskCount
+    ) {
+
+        addMissionActivity(
+            "Task completed",
+            current?.description
+                ? `Next: ${current.description}`
+                : "Mission complete"
+        );
+
+    }
+
+
+    previousCompletedTaskCount =
+        completed;
+
+
+    renderMissionExamples(
+        selectedMissionId
+    );
+
+}
+
+
+
+async function refreshMissionStatus() {
+
+    try {
+
+        const response =
+            await fetch(
+                `${DIVE_API_BASE}/api/mission`
+            );
+
+        if (!response.ok) {
+            return;
+        }
+
+
+        const mission =
+            await response.json();
+
+        renderMissionStatus(
+            mission
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Mission status unavailable:",
+            error
+        );
+
+    }
+
+}
+
+
+
+function stopVoiceIfActive() {
+
+    const button =
+        document.getElementById(
+            "btn"
+        );
+
+    if (
+        button?.classList.contains(
+            "live"
+        )
+        &&
+        typeof stop === "function"
+    ) {
+
+        stop();
+
+    }
+
+}
+
+
+
+function resetLocalDashboardUI() {
+
+    previousObservationCount = null;
+    previousSurfaceReplyCount = null;
+    previousSurfaceMessageCount = null;
+    previousCompletedTaskCount = null;
+    previousDiveStateSnapshot = null;
+    selectedSurfaceQuestionId = null;
+
+
+    document
+        .getElementById(
+            "transcript"
+        )
+        .innerHTML = `
+            <div class="empty">
+                Start the dive link to begin.
+            </div>
+        `;
+
+
+    document
+        .getElementById(
+            "observations"
+        )
+        .innerHTML = `
+            <div class="empty">
+                No observations recorded.
+            </div>
+        `;
+
+
+    document
+        .getElementById(
+            "surface-questions"
+        )
+        .innerHTML = `
+            <div class="empty">
+                No messages from diver.
+            </div>
+        `;
+
+
+    document
+        .getElementById(
+            "reply-context"
+        )
+        .textContent =
+        "New message to diver.";
+
+
+    document
+        .getElementById(
+            "surface-reply"
+        )
+        .value =
+        "";
+
+
+    clearMissionActivity();
 
 }
 
@@ -1489,7 +2673,6 @@ function showHudNotification(
 async function refreshSurfaceInbox() {
 
     try {
-
         const response =
             await fetch(
                 `${DIVE_API_BASE}/api/surface/messages`
@@ -1504,6 +2687,33 @@ async function refreshSurfaceInbox() {
 
         const messages =
             data.messages ?? [];
+
+
+        if (
+            previousSurfaceMessageCount !== null
+            &&
+            messages.length >
+                previousSurfaceMessageCount
+        ) {
+
+            const latest =
+                messages[
+                    messages.length - 1
+                ];
+
+            addMissionActivity(
+                latest.type === "question"
+                    ? "Question sent to surface"
+                    : "Message sent to surface",
+                latest.message ?? ""
+            );
+
+        }
+
+
+        previousSurfaceMessageCount =
+            messages.length;
+
 
         const container =
             document.getElementById(
@@ -1691,17 +2901,8 @@ async function refreshDiveState() {
         }
 
 
-        const state =
-            await response.json();
-
-
-        document
-            .getElementById("depth")
-            .textContent =
-            Number(
-                state.depth_m
-            ).toFixed(1);
-
+        const state = await response.json();
+        document.getElementById("depth").textContent = Number(state.depth_m).toFixed(1);
 
         document
             .getElementById(
@@ -1729,14 +2930,75 @@ async function refreshDiveState() {
             state.marker ?? "--";
 
 
+        const currentTask = state.current_task;
+
+        const currentTaskText =
+            typeof currentTask === "string"
+                ? currentTask
+                : currentTask?.description
+                  ?? "No current task";
+
+
         document
             .getElementById(
                 "current-task"
             )
             .textContent =
-            state.current_task
-            ??
-            "No current task";
+            currentTaskText;
+
+
+        document
+            .getElementById(
+                "surface-current-task"
+            )
+            .textContent =
+            currentTaskText;
+
+
+        if (
+            previousDiveStateSnapshot
+        ) {
+
+            if (
+                state.marker
+                !==
+                previousDiveStateSnapshot.marker
+                ||
+                state.transect
+                !==
+                previousDiveStateSnapshot.transect
+            ) {
+
+                const position =
+                    [
+                        state.transect
+                            ? `Transect ${state.transect}`
+                            : null,
+                        state.marker
+                            ? `Marker ${state.marker}`
+                            : null
+                    ]
+                    .filter(Boolean)
+                    .join(" · ");
+
+                addMissionActivity(
+                    "Position updated",
+                    position
+                );
+
+            }
+
+        }
+
+
+        previousDiveStateSnapshot = {
+            marker:
+                state.marker,
+            transect:
+                state.transect,
+            current_task:
+                currentTaskText
+        };
 
 
         const connection =
@@ -1792,6 +3054,319 @@ async function refreshDiveState() {
 
 }
 
+async function loadMissionSelector() {
+
+    const grid =
+        document.getElementById(
+            "mission-grid"
+        );
+
+    const startButton =
+        document.getElementById(
+            "start-simulation"
+        );
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${DIVE_API_BASE}/api/missions`
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `HTTP ${response.status}`
+            );
+
+        }
+
+
+        const data = await response.json();
+
+
+        const missions =
+            data.missions ?? [];
+
+
+        if (!missions.length) {
+
+            grid.innerHTML = `
+                <div class="mission-selector-error">
+                    No simulations are currently available.
+                </div>
+            `;
+
+            return;
+
+        }
+
+
+        grid.innerHTML =
+            missions
+                .map(
+                    mission => `
+                        <button
+                            type="button"
+                            class="mission-card"
+                            data-mission-id="${escapeHtml(
+                                mission.id
+                            )}">
+
+                            <div class="mission-card-type">
+                                Simulation
+                            </div>
+
+                            <div class="mission-card-name">
+                                ${escapeHtml(
+                                    mission.name
+                                )}
+                            </div>
+
+                            <div class="mission-card-summary">
+                                ${escapeHtml(
+                                    mission.summary
+                                    ??
+                                    mission.description
+                                    ??
+                                    ""
+                                )}
+                            </div>
+
+                            <div class="mission-card-meta">
+
+                                <span>
+                                    ${escapeHtml(
+                                        mission.site ?? ""
+                                    )}
+                                </span>
+
+                                <span>
+                                    ${mission.task_count ?? 0}
+                                    tasks
+                                </span>
+
+                            </div>
+
+                        </button>
+                    `
+                )
+                .join("");
+
+
+        document
+            .querySelectorAll(
+                ".mission-card"
+            )
+            .forEach(card => {
+
+                card.addEventListener(
+                    "click",
+                    () => {
+
+                        selectedMissionId =
+                            card.dataset.missionId;
+
+
+                        document
+                            .querySelectorAll(
+                                ".mission-card"
+                            )
+                            .forEach(otherCard => {
+
+                                otherCard
+                                    .classList
+                                    .remove(
+                                        "selected"
+                                    );
+
+                            });
+
+
+                        card
+                            .classList
+                            .add(
+                                "selected"
+                            );
+
+
+                        startButton.disabled =
+                            false;
+
+                    }
+                );
+
+            });
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Could not load missions:",
+            error
+        );
+
+
+        grid.innerHTML = `
+            <div class="mission-selector-error">
+                Could not connect to the mission service.
+            </div>
+        `;
+
+    }
+
+}
+
+async function startSelectedSimulation() {
+
+    if (!selectedMissionId) {
+        return;
+    }
+
+
+    const startButton =
+        document.getElementById(
+            "start-simulation"
+        );
+
+
+    startButton.disabled = true;
+    startButton.textContent =
+        "Starting simulation...";
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${DIVE_API_BASE}/api/mission/select`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        mission_id:
+                            selectedMissionId
+                    })
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `HTTP ${response.status}`
+            );
+
+        }
+
+        const data = await response.json();
+        resetLocalDashboardUI();
+
+        activeMissionData = data.mission ?? null;
+
+        window.DIVE_SPEECH_CONTEXT =
+            data.speech_context ?? {
+                keyterms: [],
+                transcription_prompt: ""
+            };
+
+        window.DIVE_MISSION_ID = selectedMissionId;
+
+        /*
+            Reset browser-side counters because this
+            is a completely new simulated dive.
+        */
+
+        previousObservationCount = null;
+        previousSurfaceReplyCount = null;
+        selectedSurfaceQuestionId = null;
+
+
+        simulationStarted = true;
+
+
+        if (activeMissionData) {
+
+            renderMissionStatus(
+                activeMissionData
+            );
+
+            addMissionActivity(
+                "Mission started",
+                activeMissionData.name ?? ""
+            );
+
+        }
+
+
+        document
+            .getElementById(
+                "mission-selector"
+            )
+            .hidden = true;
+
+
+        document
+            .getElementById(
+                "dashboard"
+            )
+            .hidden = false;
+
+
+        document
+            .getElementById(
+                "dive-controls"
+            )
+            .hidden = false;
+
+
+        await refreshDashboard();
+
+
+        startButton.textContent =
+            "Start simulation";
+
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Could not start simulation:",
+            error
+        );
+
+
+        startButton.disabled = false;
+        startButton.textContent =
+            "Start simulation";
+
+    }
+
+}
+
+document
+    .getElementById(
+        "start-simulation"
+    )
+    .addEventListener(
+        "click",
+        startSelectedSimulation
+    );
+
 
 
 async function refreshObservations() {
@@ -1838,6 +3413,12 @@ async function refreshObservations() {
 
 
             showHudNotification(
+                "Observation logged",
+                `${countText}${newest.description}`
+            );
+
+
+            addMissionActivity(
                 "Observation logged",
                 `${countText}${newest.description}`
             );
@@ -2008,6 +3589,12 @@ async function refreshSurfaceReplies() {
                 latest.message
             );
 
+
+            addMissionActivity(
+                "Surface reply received",
+                latest.message ?? ""
+            );
+
         }
 
 
@@ -2032,7 +3619,13 @@ async function refreshSurfaceReplies() {
 
 async function refreshDashboard() {
 
+    if (!simulationStarted) {
+        return;
+    }
+
+
     await Promise.all([
+        refreshMissionStatus(),
         refreshDiveState(),
         refreshObservations(),
         refreshSurfaceReplies(),
@@ -2040,6 +3633,290 @@ async function refreshDashboard() {
     ]);
 
 }
+
+
+
+
+async function resetCurrentSimulation() {
+
+    if (!selectedMissionId) {
+        return;
+    }
+
+
+    stopVoiceIfActive();
+
+
+    const resetButton =
+        document.getElementById(
+            "reset-simulation"
+        );
+
+
+    resetButton.disabled = true;
+    resetButton.textContent =
+        "Resetting...";
+
+
+    try {
+
+        const response =
+            await fetch(
+                `${DIVE_API_BASE}/api/mission/select`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        mission_id:
+                            selectedMissionId
+                    })
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `HTTP ${response.status}`
+            );
+
+        }
+
+
+        const data =
+            await response.json();
+
+
+        resetLocalDashboardUI();
+
+
+        activeMissionData =
+            data.mission ?? null;
+
+
+        window.DIVE_SPEECH_CONTEXT =
+            data.speech_context ?? {
+                keyterms: [],
+                transcription_prompt: ""
+            };
+
+
+        if (activeMissionData) {
+
+            renderMissionStatus(
+                activeMissionData
+            );
+
+            addMissionActivity(
+                "Simulation reset",
+                activeMissionData.name ?? ""
+            );
+
+        }
+
+
+        await refreshDashboard();
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Could not reset simulation:",
+            error
+        );
+
+        addMissionActivity(
+            "Simulation reset failed"
+        );
+
+    }
+
+    finally {
+
+        resetButton.disabled =
+            false;
+
+        resetButton.textContent =
+            "Reset simulation";
+
+    }
+
+}
+
+
+
+function changeMission() {
+
+    stopVoiceIfActive();
+    simulationStarted = false;
+    selectedMissionId = null;
+    activeMissionData = null;
+
+    window.DIVE_SPEECH_CONTEXT = {
+        keyterms: [],
+        transcription_prompt: ""
+    };
+
+    resetLocalDashboardUI();
+
+    document
+        .getElementById(
+            "dashboard"
+        )
+        .hidden = true;
+
+    document
+        .getElementById(
+            "dive-controls"
+        )
+        .hidden = true;
+
+    document
+        .getElementById(
+            "mission-selector"
+        )
+        .hidden =
+        false;
+
+
+    const startButton =
+        document.getElementById(
+            "start-simulation"
+        );
+
+    startButton.disabled =
+        true;
+
+    startButton.textContent =
+        "Start simulation";
+
+
+    document
+        .querySelectorAll(
+            ".mission-card"
+        )
+        .forEach(
+            card => {
+                card.classList.remove(
+                    "selected"
+                );
+            }
+        );
+
+
+    window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+    });
+
+}
+
+
+
+function syncHudAgentState() {
+
+    const status =
+        document.getElementById(
+            "status"
+        );
+
+    const statusText =
+        document.getElementById(
+            "status-text"
+        );
+
+    const hudState =
+        document.getElementById(
+            "hud-agent-state"
+        );
+
+
+    if (
+        !status
+        ||
+        !statusText
+        ||
+        !hudState
+    ) {
+        return;
+    }
+
+
+    const value =
+        statusText
+            .textContent
+            .trim()
+            .toLowerCase();
+
+
+    const labels = {
+        idle:
+            "Copilot idle",
+        connecting:
+            "Connecting",
+        listening:
+            "Listening",
+        speaking:
+            "Speaking",
+        error:
+            "Connection error"
+    };
+
+
+    hudState.textContent =
+        labels[value]
+        ??
+        statusText.textContent;
+
+}
+
+
+
+document
+    .getElementById(
+        "reset-simulation"
+    )
+    .addEventListener(
+        "click",
+        resetCurrentSimulation
+    );
+
+
+document
+    .getElementById(
+        "change-mission"
+    )
+    .addEventListener(
+        "click",
+        changeMission
+    );
+
+
+const voiceStatusObserver =
+    new MutationObserver(
+        syncHudAgentState
+    );
+
+
+voiceStatusObserver.observe(
+    document.getElementById(
+        "status"
+    ),
+    {
+        attributes: true,
+        childList: true,
+        subtree: true
+    }
+);
+
+
+syncHudAgentState();
 
 
 
@@ -2102,6 +3979,13 @@ document
 
                 input.value = "";
 
+
+                addMissionActivity(
+                    "Surface message sent to diver",
+                    message
+                );
+
+
                 document
                     .getElementById(
                         "reply-context"
@@ -2120,31 +4004,16 @@ document
                 ]);
 
             }
-
             catch (error) {
-
-                console.error(
-                    "Could not send surface message:",
-                    error
-                );
-
+                 console.error("Could not send surface message:", error);
             }
-
         }
     );
 
-
-
-refreshDashboard();
-
-
-setInterval(
-    refreshDashboard,
-    1000
-);
+loadMissionSelector();
+setInterval(refreshDashboard, 1000);
 
 </script>
-
 
 </body>
 </html>

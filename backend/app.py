@@ -1,43 +1,34 @@
 import math
 import time
 from datetime import datetime, timezone
+from http.client import HTTPException
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from backend.missions import (DEFAULT_MISSION_KEY, build_mission, get_mission_speech_context, list_missions)
+
 app = FastAPI(title="Dive Copilot API")
 
 # Fine for our local hackathon demo.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"], )
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 
 DIVE_STARTED_AT = time.time()
+ACTIVE_MISSION_KEY = DEFAULT_MISSION_KEY
+MISSION = build_mission(ACTIVE_MISSION_KEY)
 
 DIVE_CONTEXT = {
-    "transect": "B",
-    "marker": "B3", }
-
-MISSION = {
-    "mission_id": "reef-survey-001",
-    "name": "Reef Biodiversity Survey",
-    "site": "Reef Sector B",
-    "diver": "Diver 1",
-    "transect": "B",
-    "status": "active",
-    "tasks": [{
-        "id": "task-1",
-        "description": "Survey fish population along transect B",
-        "completed": False, }, {
-        "id": "task-2",
-        "description": "Record visible coral bleaching",
-        "completed": False, }, {
-        "id": "task-3",
-        "description": "Complete observations at marker B4",
-        "completed": False, }, ], }
+    "transect": MISSION["transect"],
+    "marker": MISSION["start_marker"]}
 
 OBSERVATIONS = []
 SURFACE_MESSAGES = []
 SURFACE_REPLIES = []
+
+
+class MissionSelection(BaseModel):
+    mission_id: str
 
 
 class SurfaceQuestion(BaseModel):
@@ -89,7 +80,7 @@ def get_current_task():
 def get_surface_messages():
     return {
         "count": len(SURFACE_MESSAGES),
-        "messages": SURFACE_MESSAGES, }
+        "messages": SURFACE_MESSAGES}
 
 
 @app.post("/api/surface/messages")
@@ -103,13 +94,37 @@ def send_surface_message(surface_message: SurfaceMessage):
         "priority": surface_message.priority,
         "depth_m": state["depth_m"],
         "transect": state["transect"],
-        "marker": state["marker"], }
+        "marker": state["marker"]}
 
     SURFACE_MESSAGES.append(item)
 
     return {
         "status": "sent",
-        "message": item, }
+        "message": item}
+
+
+@app.get("/api/missions")
+def get_available_missions():
+    return {
+        "missions": list_missions(),
+        "active_mission_id": ACTIVE_MISSION_KEY}
+
+
+@app.post("/api/mission/select")
+def select_mission(selection: MissionSelection):
+    try:
+        reset_simulation(selection.mission_id)
+
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Mission not found")
+
+    return {
+        "status": "selected",
+        "mission_id": ACTIVE_MISSION_KEY,
+        "mission": MISSION,
+        "dive_state": current_dive_state(),
+
+        "speech_context": get_mission_speech_context(ACTIVE_MISSION_KEY), }
 
 
 @app.post("/api/tasks/complete")
@@ -121,39 +136,33 @@ def complete_task(completion: TaskCompletion):
                 return {
                     "status": "already_completed",
                     "task": task,
-                    "next_task": get_current_task(), }
+                    "next_task": get_current_task()}
 
             task["completed"] = True
 
             return {
                 "status": "completed",
                 "task": task,
-                "next_task": get_current_task(), }
+                "next_task": get_current_task()}
 
     return {
         "status": "error",
-        "message": f"Task {completion.task_id} was not found.", }
+        "message": f"Task {completion.task_id} was not found."}
 
 
 def current_dive_state():
-    elapsed = int(time.time() - DIVE_STARTED_AT)
+    elapsed = time.time() - DIVE_STARTED_AT
+    base_depth = MISSION["simulation"]["depth_m"]
 
-    depth = round(14.2 + 0.35 * math.sin(elapsed / 10), 1, )
-
-    current_task = get_current_task()
+    depth = round(base_depth + 0.2 * math.sin(elapsed / 7), 1)
 
     return {
         "depth_m": depth,
-        "dive_time_seconds": elapsed,
-
+        "dive_time_seconds": int(elapsed),
         "transect": DIVE_CONTEXT["transect"],
         "marker": DIVE_CONTEXT["marker"],
-
         "connection": "connected",
-
-        "current_task_id": (current_task["id"] if current_task else None),
-
-        "current_task": (current_task["description"] if current_task else "Mission tasks complete"), }
+        "current_task": get_current_task()}
 
 
 @app.get("/health")
@@ -176,7 +185,7 @@ def get_dive_state():
 def get_observations():
     return {
         "count": len(OBSERVATIONS),
-        "observations": OBSERVATIONS, }
+        "observations": OBSERVATIONS}
 
 
 @app.post("/api/observations")
@@ -191,13 +200,13 @@ def log_observation(observation: ObservationIn):
         "count": observation.count,
         "depth_m": state["depth_m"],
         "transect": state["transect"],
-        "marker": state["marker"], }
+        "marker": state["marker"]}
 
     OBSERVATIONS.append(item)
 
     return {
         "status": "recorded",
-        "observation": item, }
+        "observation": item}
 
 
 @app.post("/api/observations/correct")
@@ -205,7 +214,7 @@ def correct_observation(correction: ObservationCorrection):
     if not OBSERVATIONS:
         return {
             "status": "error",
-            "message": "No observations exist to correct.", }
+            "message": "No observations exist to correct."}
 
     # If no ID is supplied, correct the most recent observation.
     target = None
@@ -221,20 +230,20 @@ def correct_observation(correction: ObservationCorrection):
     if target is None:
         return {
             "status": "error",
-            "message": f"Observation {correction.observation_id} was not found.", }
+            "message": f"Observation {correction.observation_id} was not found."}
 
-    changes = correction.model_dump(exclude_unset=True, exclude={"observation_id"}, )
+    changes = correction.model_dump(exclude_unset=True, exclude={"observation_id"})
 
     if not changes:
         return {
             "status": "error",
-            "message": "No correction values were provided.", }
+            "message": "No correction values were provided."}
 
     # Keep a small audit trail.
     previous = {
         "category": target.get("category"),
         "description": target.get("description"),
-        "count": target.get("count"), }
+        "count": target.get("count")}
 
     for key, value in changes.items():
         target[key] = value
@@ -244,11 +253,12 @@ def correct_observation(correction: ObservationCorrection):
     target.setdefault("correction_history", []).append({
         "timestamp": target["corrected_at"],
         "previous": previous,
-        "changes": changes, })
+        "changes": changes})
 
     return {
         "status": "corrected",
-        "observation": target, }
+        "observation": target}
+
 
 @app.post("/api/dive-state/position")
 def update_dive_position(update: DivePositionUpdate):
@@ -262,9 +272,8 @@ def update_dive_position(update: DivePositionUpdate):
         "status": "updated",
         "position": {
             "transect": DIVE_CONTEXT["transect"],
-            "marker": DIVE_CONTEXT["marker"],
-        },
-    }
+            "marker": DIVE_CONTEXT["marker"]}}
+
 
 @app.post("/api/surface/questions")
 def ask_surface(question: SurfaceQuestion):
@@ -279,15 +288,13 @@ def ask_surface(question: SurfaceQuestion):
         "depth_m": state["depth_m"],
         "transect": state["transect"],
         "marker": state["marker"],
-        "status": "pending",
-    }
+        "status": "pending"}
 
     SURFACE_MESSAGES.append(item)
 
     return {
         "status": "sent",
-        "request": item,
-    }
+        "request": item}
 
 
 @app.post("/api/surface/replies")
@@ -296,8 +303,7 @@ def send_surface_reply(reply: SurfaceReply):
         "id": len(SURFACE_REPLIES) + 1,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "message": reply.message,
-        "in_reply_to": reply.in_reply_to,
-    }
+        "in_reply_to": reply.in_reply_to}
 
     SURFACE_REPLIES.append(item)
 
@@ -309,26 +315,39 @@ def send_surface_reply(reply: SurfaceReply):
 
     return {
         "status": "received",
-        "reply": item,
-    }
+        "reply": item}
 
 
 @app.get("/api/surface/replies")
 def get_surface_replies():
     return {
         "count": len(SURFACE_REPLIES),
-        "messages": SURFACE_REPLIES[-10:],
-    }
+        "messages": SURFACE_REPLIES[-10:]}
+
 
 @app.get("/api/surface/questions")
 def get_surface_questions():
-    questions = [
-        item
-        for item in SURFACE_MESSAGES
-        if item.get("type") == "question"
-    ]
+    questions = [item for item in SURFACE_MESSAGES if item.get("type") == "question"]
 
     return {
         "count": len(questions),
-        "questions": questions[-10:],
-    }
+        "questions": questions[-10:]}
+
+
+def reset_simulation(mission_key: str) -> None:
+    global ACTIVE_MISSION_KEY
+    global MISSION
+    global DIVE_CONTEXT
+    global DIVE_STARTED_AT
+
+    ACTIVE_MISSION_KEY = mission_key
+    MISSION = build_mission(mission_key)
+    DIVE_CONTEXT = {
+        "transect": MISSION["transect"],
+        "marker": MISSION["start_marker"]}
+
+    DIVE_STARTED_AT = time.time()
+
+    OBSERVATIONS.clear()
+    SURFACE_MESSAGES.clear()
+    SURFACE_REPLIES.clear()

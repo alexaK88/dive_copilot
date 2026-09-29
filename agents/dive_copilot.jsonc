@@ -1,41 +1,27 @@
 {
   "name": "Dive Copilot",
-
   "system_prompt": "@file:prompts/dive_copilot.txt",
   "greeting": "Dive Copilot online. Ready for mission support.",
-
   "voice": {
     "voice_id": "anna"
   },
-
   "input": {
     "transcription_mode": "balanced",
-    "transcription_prompt": "A scientific underwater dive mission. The diver is conducting a marine biodiversity and reef survey and may report species, counts, coral condition, depth, transects, survey markers, equipment and underwater observations.",
-
+    "transcription_prompt": "A professional diver is interacting with Dive Copilot during a simulated underwater mission. Expect diving terminology, mission tasks, observations, transects, markers, equipment terms and communication with surface control.",
     "keyterms": [
+      "Dive Copilot",
       "transect",
-      "Acropora",
-      "Porites",
-      "lionfish",
-      "Pterois volitans",
-      "bleaching",
-      "substrate",
-      "quadrant",
-      "starboard",
-      "BCD",
-      "B3",
-      "B4",
-      "B5"
+      "marker",
+      "surface",
+      "surface control"
     ],
-
     "voice_focus": "near-field",
     "voice_focus_threshold": 0.8
   },
-
   "tools": [
     {
       "name": "get_mission",
-      "description": "Retrieve the current dive mission, objectives and mission tasks. Use when the diver asks what the mission is, what they should survey, or what work remains.",
+      "description": "Retrieve the active mission definition, mission purpose, objectives, and full task list. Use when the diver asks what the mission is, what the overall objectives are, which mission tasks exist, or what mission work remains. Do not use for live telemetry such as current depth, dive time, current marker, current transect, connection state, or the current active task; use get_dive_state for those.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -48,10 +34,9 @@
         "http_method": "GET"
       }
     },
-
     {
       "name": "get_dive_state",
-      "description": "Retrieve simulated current dive telemetry including depth, dive time, transect, marker, connection state and current task. Use whenever the diver asks about their current dive state.",
+      "description": "Retrieve the diver's current live simulated dive state, including depth, dive time, current transect, current marker, connection state, and current active task. Use when the diver asks where they are, their depth or dive time, what they should do now, what the current task is, or other current-state questions. This tool is read-only and must not be used to infer that a planned destination has already been reached.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -64,10 +49,9 @@
         "http_method": "GET"
       }
     },
-
     {
       "name": "log_observation",
-      "description": "Record an observation made by the diver. Use whenever the diver asks to log, record, mark or note something they observe. Current depth, transect, marker and timestamp are automatically attached by the backend.",
+      "description": "Create a new observation record only when the diver clearly intends to log, record, note, or mark an actual finding such as a species, condition, defect, debris item, environmental condition, or equipment observation. Do not use this tool to complete mission tasks, update position, send surface messages, or record planned/future observations. If the diver self-corrects within the same utterance before anything has been written, log only the final corrected observation once. Current depth, transect, marker, and timestamp are attached automatically by the backend.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -96,10 +80,9 @@
         "http_method": "POST"
       }
     },
-
     {
       "name": "get_observations",
-      "description": "Retrieve all observations recorded during the current dive. Use when the diver asks what has already been logged, recorded or observed.",
+      "description": "Retrieve observations already recorded during the current dive. Use when the diver asks what has been logged, recorded, or observed, or when an older observation must be identified before correction. This tool is read-only and does not create, modify, or delete observations.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -112,44 +95,33 @@
         "http_method": "GET"
       }
     },
-
     {
       "name": "correct_observation",
-
-      "description": "Correct an observation that was already recorded. Use this when the diver says they made a mistake, changes something they just reported, says phrases such as 'wait', 'actually', 'I meant', 'make that', 'correct that', or otherwise clearly modifies an existing observation. If observation_id is omitted, the most recently logged observation will be corrected.",
-
+      "description": "Modify an observation that has already been recorded. Use only when the diver clearly corrects an existing observation and both the target observation and corrected value are clear. If the diver is clearly correcting the most recent observation, observation_id may be omitted; if an older observation is intended, retrieve observations first and use its ID. Do not use for current-position corrections, task completion, or surface-message corrections. Do not use this tool for a self-correction that occurs within the same utterance before the original observation was written; in that case, write only the final corrected observation with log_observation. If the requested correction is ambiguous, ask one short clarifying question before calling this tool.",
       "parameters": {
         "type": "object",
-
         "properties": {
           "observation_id": {
             "type": "integer",
             "description": "ID of the observation to modify. Omit this when the diver is clearly correcting the most recent observation."
           },
-
           "category": {
             "type": "string",
             "description": "Corrected category. Only provide this when the category itself changed."
           },
-
           "description": {
             "type": "string",
             "description": "Corrected description. Only provide this when the observation description changed."
           },
-
           "count": {
             "type": "integer",
             "description": "Corrected number of items or organisms observed. Only provide this when the count changed."
           }
         },
-
         "required": []
       },
-
       "execution_mode": "interactive",
-
       "timeout_seconds": 15,
-
       "http": {
         "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations/correct",
         "http_method": "POST"
@@ -157,28 +129,21 @@
     },
     {
       "name": "complete_task",
-
-      "description": "Mark a dive mission task as completed. Use this when the diver clearly states that they have finished, completed, or are done with a mission task. If the diver does not clearly identify which task they completed, retrieve the mission first before using this tool.",
-
+      "description": "Mark a mission task complete only when the diver explicitly states that the task has been finished, completed, or is done. Do not complete a task merely because the diver discusses it, arrives at its location, logs an observation related to it, or says they are about to perform it. If 'this task' or 'current task' is referenced and the task identity is not already clear, use get_dive_state first. If a specific task must be matched to the mission task list or task ID, use get_mission as needed.",
       "parameters": {
         "type": "object",
-
         "properties": {
           "task_id": {
             "type": "string",
             "description": "The exact mission task ID, for example task-1."
           }
         },
-
         "required": [
           "task_id"
         ]
       },
-
       "execution_mode": "interactive",
-
       "timeout_seconds": 15,
-
       "http": {
         "url": "https://collie-consensus-sphere.ngrok-free.dev/api/tasks/complete",
         "http_method": "POST"
@@ -186,17 +151,14 @@
     },
     {
       "name": "message_surface",
-
-      "description": "Send a deliberate message from the diver to the surface team. Use only when the diver explicitly asks to tell, notify, inform, report, or send information to surface. Include only the content clearly intended for surface. Exclude filler, acknowledgements, conversational control phrases, and unrelated speech. Do not append later speech unless the diver explicitly modifies the message.",
+      "description": "Send a deliberate statement from the diver to the surface team. Use only when the diver explicitly asks to tell, notify, inform, message, report, or send information to surface. Use ask_surface instead when the intended content is a question. Send only the content clearly intended for surface; exclude filler, acknowledgements, and conversational control phrases. Do not send incomplete messages. Do not treat sending a location message as a position update unless the diver also clearly confirms that location as their current physical position. If a previously sent surface message is later corrected, send a new correction message rather than pretending the original was unsent.",
       "parameters": {
         "type": "object",
-
         "properties": {
           "message": {
             "type": "string",
             "description": "The message that should be communicated to the surface team."
           },
-
           "priority": {
             "type": "string",
             "enum": [
@@ -207,17 +169,13 @@
             "description": "Message priority. Use routine by default. Use attention when the diver reports an important operational change. Use urgent only when the diver explicitly indicates urgency or an emergency."
           }
         },
-
         "required": [
           "message",
           "priority"
         ]
       },
-
       "execution_mode": "interactive",
-
       "timeout_seconds": 10,
-
       "http": {
         "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/messages",
         "http_method": "POST"
@@ -225,9 +183,7 @@
     },
     {
       "name": "update_dive_position",
-
-      "description": "Update the diver's current mission position when the diver explicitly states that they have reached, entered, moved to, or are currently at a different transect or marker. Also use this when the diver corrects their current position.",
-
+      "description": "Update the diver's confirmed current physical marker or transect. Call only when the diver clearly states that they are currently at a location, have reached or arrived at it, or are explicitly correcting their current position. Do not call for intended destinations, required movement, future locations, navigation instructions, planned next markers, or movement in progress. Examples that must NOT update position include 'I need to move to C4', 'I'm heading to C4', 'I'm moving toward C4', 'C4 is next', and 'move to C4'. The word 'now' alone does not prove arrival. A marker mentioned only as an observation location or inside a surface message does not update current position unless the diver separately confirms being there. If arrival is genuinely ambiguous, ask one short clarification before calling this tool.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -242,10 +198,8 @@
         },
         "required": []
       },
-
       "execution_mode": "interactive",
       "timeout_seconds": 10,
-
       "http": {
         "url": "https://collie-consensus-sphere.ngrok-free.dev/api/dive-state/position",
         "http_method": "POST"
@@ -253,9 +207,7 @@
     },
     {
       "name": "ask_surface",
-
-      "description": "Send a deliberate question from the diver to the surface team. Use when the diver explicitly asks you to ask, check with, or request information from surface. Include only the question intended for surface. Do not include filler, politeness phrases, unrelated later speech, or conversational control language.",
-
+      "description": "Send a deliberate question from the diver to the surface team. Use only when the diver explicitly asks to ask, check with, or request information from surface. Use message_surface instead for statements that do not request an answer. Send only the complete question intended for surface; exclude filler, politeness-only phrases, unrelated speech, and conversational control language. Do not call this tool for an incomplete question. A successful call means the question was sent; it does not mean surface has answered.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -263,7 +215,6 @@
             "type": "string",
             "description": "The question to send to the surface team."
           },
-
           "priority": {
             "type": "string",
             "enum": [
@@ -274,17 +225,13 @@
             "description": "Priority of the question. Use routine unless the diver clearly indicates greater urgency."
           }
         },
-
         "required": [
           "question",
           "priority"
         ]
       },
-
       "execution_mode": "interactive",
-
       "timeout_seconds": 10,
-
       "http": {
         "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/questions",
         "http_method": "POST"
@@ -292,19 +239,14 @@
     },
     {
       "name": "get_surface_messages",
-
-      "description": "Retrieve recent messages received from the surface team. Use when the diver asks whether surface replied, what surface said, whether there is an update from surface, or requests information previously supplied by surface.",
-
+      "description": "Retrieve actual messages or replies received from the surface team. Use when the diver asks whether surface replied, what surface said, whether there is an update from surface, or asks for information previously supplied by surface. Do not invent or infer a reply to a recently sent question. If no reply has been received, report that no surface reply is available yet. This tool is read-only.",
       "parameters": {
         "type": "object",
         "properties": {},
         "required": []
       },
-
       "execution_mode": "interactive",
-
       "timeout_seconds": 10,
-
       "http": {
         "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/replies",
         "http_method": "GET"
