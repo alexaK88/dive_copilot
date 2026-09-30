@@ -30,7 +30,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 15,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/mission",
+        "url": "https://dive-copilot-api.onrender.com/api/mission",
         "http_method": "GET"
       }
     },
@@ -45,7 +45,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 15,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/dive-state",
+        "url": "https://dive-copilot-api.onrender.com/api/dive-state",
         "http_method": "GET"
       }
     },
@@ -76,7 +76,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 15,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations",
+        "url": "https://dive-copilot-api.onrender.com/api/observations",
         "http_method": "POST"
       }
     },
@@ -91,7 +91,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 15,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations",
+        "url": "https://dive-copilot-api.onrender.com/api/observations",
         "http_method": "GET"
       }
     },
@@ -123,7 +123,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 15,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/observations/correct",
+        "url": "https://dive-copilot-api.onrender.com/api/observations/correct",
         "http_method": "POST"
       }
     },
@@ -145,7 +145,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 15,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/tasks/complete",
+        "url": "https://dive-copilot-api.onrender.com/api/tasks/complete",
         "http_method": "POST"
       }
     },
@@ -177,7 +177,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 10,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/messages",
+        "url": "https://dive-copilot-api.onrender.com/api/surface/messages",
         "http_method": "POST"
       }
     },
@@ -201,7 +201,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 10,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/dive-state/position",
+        "url": "https://dive-copilot-api.onrender.com/api/dive-state/position",
         "http_method": "POST"
       }
     },
@@ -233,7 +233,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 10,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/questions",
+        "url": "https://dive-copilot-api.onrender.com/api/surface/questions",
         "http_method": "POST"
       }
     },
@@ -248,7 +248,7 @@
       "execution_mode": "interactive",
       "timeout_seconds": 10,
       "http": {
-        "url": "https://collie-consensus-sphere.ngrok-free.dev/api/surface/replies",
+        "url": "https://dive-copilot-api.onrender.com/api/surface/replies",
         "http_method": "GET"
       }
     }
