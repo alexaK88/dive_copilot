@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#031015" />
+  <meta name="description" content="Dive Copilot is a voice-first AI mission assistant that turns underwater speech into structured, traceable mission data." />
+  <meta property="og:title" content="Dive Copilot — Voice AI for underwater missions" />
+  <meta property="og:description" content="A voice-first AI mission assistant for professional underwater operations." />
+  <meta property="og:type" content="website" />
+  <title>Dive Copilot — Voice AI for underwater missions</title>
+  <link rel="icon" href="assets/site/dive-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Dive Copilot home">
+      <img src="assets/site/dive-mark.svg" alt="" />
+      <span>
+        <strong>Dive Copilot</strong>
+        <small>Voice → Mission Data</small>
+      </span>
+    </a>
+
+    <nav class="desktop-nav" aria-label="Primary navigation">
+      <a href="#problem">Problem</a>
+      <a href="#missions">Missions</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#engineering">Engineering</a>
+    </nav>
+
+    <a class="header-cta" href="https://github.com/alexaK88/dive_copilot" target="_blank" rel="noreferrer">
+      GitHub
+      <span aria-hidden="true">↗</span>
+    </a>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-copy reveal">
+        <div class="eyebrow"><span></span> Voice AI for professional underwater operations</div>
+        <h1>Turn underwater voice into <em>operational data.</em></h1>
+        <p class="hero-lead">
+          Dive Copilot is a voice-first AI mission assistant that converts natural speech into structured observations,
+          confirmed position updates, task completion and diver-to-surface communication.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://voice-agent-6vcw.onrender.com" target="_blank" rel="noreferrer">
+            Open prototype <span aria-hidden="true">↗</span>
+          </a>
+          <a class="button button-secondary" href="#how-it-works">See how it works</a>
+        </div>
+        <div class="hero-note">
+          <span class="pulse-dot"></span>
+          Browser-based simulated mission environment · Built with AssemblyAI + FastAPI
+        </div>
+      </div>
+
+      <div class="hero-visual reveal" aria-label="Conceptual diver heads-up display">
+        <div class="hud-shell">
+          <div class="hud-topline">
+            <span class="hud-label">DIVE COPILOT // ACTIVE MISSION</span>
+            <span class="hud-status"><i></i> LISTENING</span>
+          </div>
+
+          <div class="hud-water">
+            <div class="sonar sonar-a"></div>
+            <div class="sonar sonar-b"></div>
+            <div class="crosshair"><span></span></div>
+
+            <div class="hud-depth">
+              <small>DEPTH</small>
+              <strong>18.4</strong>
+              <span>m</span>
+            </div>
+
+            <div class="hud-position">
+              <small>CONFIRMED POSITION</small>
+              <strong>C2</strong>
+            </div>
+
+            <div class="hud-task">
+              <small>CURRENT TASK</small>
+              <strong>Inspect support joint C2</strong>
+              <span>Check corrosion, coating damage and marine growth.</span>
+            </div>
+
+            <div class="voice-card">
+              <span class="voice-tag">DIVER</span>
+              <p>“Record moderate corrosion at support joint C2.”</p>
+              <div class="waveform" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-bottom">
+            <span><b>01</b> Observation logged</span>
+            <span><b>API</b> Mission state synced</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="statement reveal" aria-label="Project thesis">
+      <p>
+        “Dive Copilot turns voice communication that already happens underwater into
+        <strong>structured, traceable and immediately usable mission data.</strong>”
+      </p>
+    </section>
+
+    <section class="section two-column" id="problem">
+      <div class="section-heading reveal">
+        <div class="section-number">01</div>
+        <p class="kicker">The problem</p>
+        <h2>Underwater work is interaction-constrained.</h2>
+      </div>
+      <div class="section-copy reveal">
+        <p>
+          Professional divers may need to inspect structures, record findings, follow mission tasks and communicate with
+          surface control while their hands, vision and attention are already occupied.
+        </p>
+        <p>
+          Voice communication already exists in many workflows, but the information is often transient. Dive Copilot
+          explores what happens when speech becomes a direct interface to mission state instead of something that must be
+          reconstructed later.
+        </p>
+        <div class="constraint-grid">
+          <div><span>01</span><b>Hands occupied</b><small>Interaction must stay lightweight.</small></div>
+          <div><span>02</span><b>Attention limited</b><small>The interface cannot demand constant visual focus.</small></div>
+          <div><span>03</span><b>Data must persist</b><small>Observations need to become structured records.</small></div>
+          <div><span>04</span><b>Intent matters</b><small>Movement, arrival, correction and messaging are different actions.</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works">
+      <div class="section-heading centered reveal">
+        <p class="kicker">Voice as an operational interface</p>
+        <h2>One sentence can change mission state.</h2>
+        <p class="section-intro">The agent routes natural speech to explicit backend actions rather than relying on conversational memory as the source of truth.</p>
+      </div>
+
+      <div class="intent-grid reveal">
+        <article class="intent-card accent-cyan">
+          <div class="intent-top"><span>OBSERVATION</span><code>log_observation()</code></div>
+          <blockquote>“Record moderate corrosion at support joint C2.”</blockquote>
+          <div class="structured-output">
+            <span>type <b>corrosion</b></span>
+            <span>severity <b>moderate</b></span>
+            <span>location <b>C2</b></span>
+          </div>
+        </article>
+
+        <article class="intent-card accent-green">
+          <div class="intent-top"><span>POSITION</span><code>update_dive_position()</code></div>
+          <blockquote>“I’m heading to B4.”</blockquote>
+          <div class="decision bad"><span>×</span> Confirmed position unchanged</div>
+          <blockquote class="second">“I’ve arrived at B4.”</blockquote>
+          <div class="decision good"><span>✓</span> Position updated to B4</div>
+        </article>
+
+        <article class="intent-card accent-yellow">
+          <div class="intent-top"><span>CORRECTION</span><code>correct_observation()</code></div>
+          <blockquote>“Actually, make that slight corrosion.”</blockquote>
+          <div class="correction-row"><del>moderate</del><span>→</span><strong>slight</strong></div>
+          <p>Updates the existing record instead of creating a duplicate observation.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="missions">
+      <div class="section-heading reveal">
+        <div class="section-number">02</div>
+        <p class="kicker">Three simulated missions</p>
+        <h2>One agent, mission-specific context.</h2>
+        <p class="section-intro left">The same configurable agent adapts terminology, marker IDs and recognition context to the active operation.</p>
+      </div>
+
+      <div class="mission-grid">
+        <article class="mission-card reveal">
+          <div class="mission-orbit infrastructure"><span>C2</span></div>
+          <div class="mission-meta">MISSION 01 · STRUCTURAL</div>
+          <h3>Infrastructure Inspection</h3>
+          <p>Inspect support joints, corrosion, coating damage, marine growth and structural anomalies.</p>
+          <div class="tag-row"><span>corrosion</span><span>support joint</span><span>coating</span></div>
+        </article>
+
+        <article class="mission-card reveal">
+          <div class="mission-orbit reef"><span>B4</span></div>
+          <div class="mission-meta">MISSION 02 · SCIENTIFIC</div>
+          <h3>Reef Biodiversity Survey</h3>
+          <p>Record species observations, fish counts, coral bleaching and movement between transect markers.</p>
+          <div class="tag-row"><span>Pterois volitans</span><span>Acropora</span><span>transect</span></div>
+        </article>
+
+        <article class="mission-card reveal">
+          <div class="mission-orbit debris"><span>D3</span></div>
+          <div class="mission-meta">MISSION 03 · ENVIRONMENTAL</div>
+          <h3>Marine Debris Survey</h3>
+          <p>Document debris type, fishing line, nets, entanglement hazards and recovery-relevant information.</p>
+          <div class="tag-row"><span>monofilament</span><span>hazard</span><span>debris</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section architecture-section" id="architecture">
+      <div class="section-heading reveal">
+        <div class="section-number">03</div>
+        <p class="kicker">Architecture</p>
+        <h2>Conversation on top. Operational state underneath.</h2>
+      </div>
+
+      <div class="architecture reveal" aria-label="Dive Copilot system architecture">
+        <div class="arch-node primary-node">
+          <span class="node-icon">◉</span>
+          <small>INPUT</small>
+          <strong>Diver voice</strong>
+          <p>Hands-free mission interaction</p>
+        </div>
+        <div class="arch-link"><span>real-time audio</span><i></i></div>
+        <div class="arch-node agent-node">
+          <span class="node-icon">✦</span>
+          <small>VOICE LAYER</small>
+          <strong>AssemblyAI Voice Agent</strong>
+          <p>Speech · turn detection · tool selection · voice response</p>
+        </div>
+        <div class="arch-link"><span>HTTP tools</span><i></i></div>
+        <div class="arch-node backend-node">
+          <span class="node-icon">⌁</span>
+          <small>STATE LAYER</small>
+          <strong>FastAPI Mission Backend</strong>
+          <p>Tasks · position · observations · surface communication</p>
+        </div>
+      </div>
+
+      <div class="state-strip reveal">
+        <span>Mission</span><span>Current task</span><span>Confirmed position</span><span>Observations</span><span>Surface messages</span><span>Surface replies</span>
+      </div>
+    </section>
+
+    <section class="section engineering-section" id="engineering">
+      <div class="section-heading reveal">
+        <div class="section-number">04</div>
+        <p class="kicker">Engineering</p>
+        <h2>Built to test more than the happy path.</h2>
+      </div>
+
+      <div class="engineering-layout">
+        <div class="engineering-copy reveal">
+          <p>
+            The prototype was tested around ambiguous movement, observation corrections, incomplete surface messages,
+            repeated state queries and mission-aware terminology — the cases where a voice interface can quietly become unreliable.
+          </p>
+          <div class="tech-stack">
+            <span>Python</span><span>FastAPI</span><span>JavaScript</span><span>WebSockets</span><span>REST APIs</span><span>AssemblyAI</span><span>Prompt Engineering</span><span>Render</span>
+          </div>
+        </div>
+
+        <div class="metric-panel reveal">
+          <div class="metric">
+            <small>FASTAPI WRITE LATENCY</small>
+            <strong>~1–2 <span>ms</span></strong>
+            <p>Mission backend operations stayed in the low-millisecond range during testing.</p>
+          </div>
+          <div class="metric">
+            <small>SPEECH → FIRST AUDIO</small>
+            <strong>2.86 → 2.55 <span>s</span></strong>
+            <p>Prompt simplification reduced measured first-audio latency while preserving tested tool routing.</p>
+          </div>
+          <div class="metric wide">
+            <small>PRIMARY BOTTLENECK IDENTIFIED</small>
+            <strong>Agent / tool-selection stage</strong>
+            <p>Instrumentation showed that perceived latency was dominated by the voice-agent pipeline rather than backend processing.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section future-section">
+      <div class="future-card reveal">
+        <div>
+          <p class="kicker">Prototype → field system</p>
+          <h2>The interaction layer is only the beginning.</h2>
+          <p>
+            The current version is a software prototype and simulation. A real deployment could connect the same interaction model to
+            full-face-mask communications, telemetry, underwater cameras, inspection databases and surface-control infrastructure.
+          </p>
+        </div>
+        <div class="future-links">
+          <span>Full-face-mask comms</span>
+          <span>Telemetry</span>
+          <span>Camera feeds</span>
+          <span>Inspection systems</span>
+          <span>Surface control</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing reveal">
+      <img src="assets/site/dive-mark.svg" alt="" />
+      <p class="kicker">Dive Copilot</p>
+      <h2>Voice → Mission Data</h2>
+      <p>A voice-first AI mission assistant for professional underwater operations.</p>
+      <div class="hero-actions centered-actions">
+        <a class="button button-primary" href="https://github.com/alexaK88/dive_copilot" target="_blank" rel="noreferrer">View source <span aria-hidden="true">↗</span></a>
+        <a class="button button-secondary" href="https://voice-agent-6vcw.onrender.com" target="_blank" rel="noreferrer">Open prototype <span aria-hidden="true">↗</span></a>
+      </div>
+      <small class="prototype-note">Prototype only — not certified dive equipment, a dive computer, decompression planner or replacement for established safety procedures.</small>
+    </section>
+  </main>
+
+  <footer>
+    <div>
+      <strong>Dive Copilot</strong>
+      <span>Built by Aleksandra K.</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/alexaK88/dive_copilot" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="https://github.com/alexaK88/dive_copilot/blob/main/docs/architecture.md" target="_blank" rel="noreferrer">Architecture</a>
+      <a href="https://github.com/alexaK88/dive_copilot/blob/main/docs/testing.md" target="_blank" rel="noreferrer">Testing</a>
+    </div>
+    <span>© <span id="year"></span></span>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>

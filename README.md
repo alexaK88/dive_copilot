@@ -2,6 +2,9 @@
 
 **Voice AI for professional underwater missions.**
 
+🌐 **Project website:** https://alexak88.github.io/dive_copilot/
+
+
 Dive Copilot is a voice-first AI mission assistant designed to support professional divers during underwater operations.
 
 Instead of acting as a conventional chatbot, Dive Copilot connects natural voice interaction to structured mission state. Divers can use speech to access their current task, record observations, update confirmed position, complete mission steps and communicate with surface control while remaining focused on the underwater environment.
