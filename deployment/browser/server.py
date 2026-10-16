@@ -60,15 +60,55 @@ PAGE = ""
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def _send(self, status: int, body: bytes, content_type: str) -> None:
+    def _send(
+        self,
+        status: int,
+        body: bytes,
+        content_type: str,
+        *,
+        cache_control: str = "no-store",
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", cache_control)
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.split("?")[0]
+
+        if path == "/session-config":
+            # Mint the temporary browser token and return the active agent id in
+            # one non-cacheable response. The browser therefore cannot combine
+            # a stale agent id embedded in an old HTML page with a fresh token.
+            try:
+                agent = aai(f"/agents/{AGENT['id']}")
+                token = aai("/token?product=voice_agent&expires_in_seconds=60")
+                payload = {
+                    "token": token.get("token"),
+                    "agent": {
+                        "id": AGENT["id"],
+                        "name": agent.get("name") or AGENT.get("name") or "Dive Copilot",
+                    },
+                }
+                if not payload["token"]:
+                    raise ApiError("GET /token", 502, "response contained no token")
+                self._send(200, json.dumps(payload).encode(), "application/json")
+            except ApiError as err:
+                print(err)
+                self._send(
+                    502,
+                    json.dumps({
+                        "error": "could not prepare voice session",
+                        "detail": str(err),
+                    }).encode(),
+                    "application/json",
+                )
+            return
+
+        # Kept for backwards compatibility and simple diagnostics. New browser
+        # clients use /session-config instead.
         if path == "/token":
             try:
                 token = aai("/token?product=voice_agent&expires_in_seconds=60")
@@ -77,6 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                 print(err)
                 self._send(502, b'{"error":"token request failed"}', "application/json")
             return
+
         if path == "/agent":
             try:
                 agent = aai(f"/agents/{AGENT['id']}")
@@ -85,9 +126,16 @@ class Handler(BaseHTTPRequestHandler):
                 print(err)
                 self._send(502, b'{"error":"could not load the agent"}', "application/json")
             return
+
         if path == "/app.js":
-            self._send(200, (HERE / "app.js").read_bytes(), "text/javascript")
+            self._send(
+                200,
+                (HERE / "app.js").read_bytes(),
+                "text/javascript",
+                cache_control="no-cache",
+            )
             return
+
         self._send(200, PAGE.encode(), "text/html")
 
     def log_message(self, *args) -> None:  # quiet; errors are printed above

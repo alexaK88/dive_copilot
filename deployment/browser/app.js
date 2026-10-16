@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id)
 // The rate the API speaks. Both worklets resample, since a browser may
 // ignore the rate an AudioContext asks for.
 const WIRE_RATE = 24_000
-const AGENT = window.AGENT
+let AGENT = window.AGENT || { id: '', name: 'Dive Copilot' }
 
 // Scratch buffers are reused: allocating on the audio thread causes glitches.
 const CAPTURE_WORKLET = `
@@ -219,7 +219,15 @@ function printLatencyTurn() {
   })
 }
 
-let ws, captureCtx, playbackCtx, playback, mic, callStart, timer
+let ws, captureCtx, playbackCtx, playback, capture, mic, callStart, timer
+let voiceState = 'idle'
+let sessionReady = false
+let currentSessionId = null
+let readyTimeout = null
+let intentionalStop = false
+let sessionHadError = false
+
+const READY_TIMEOUT_MS = 15_000
 
 // --- microphones ---
 // Labels stay empty until mic permission is granted, so this runs again after
@@ -249,7 +257,13 @@ async function listMics() {
 listMics()
 navigator.mediaDevices?.addEventListener?.('devicechange', listMics)
 
-$('btn').onclick = () => (ws?.readyState <= 1 ? stop() : start())
+$('btn').onclick = () => {
+  if (['idle', 'error', 'disconnected'].includes(voiceState)) {
+    start()
+  } else {
+    stop()
+  }
+}
 $('log-toggle').onclick = () => {
   const hidden = document.body.classList.toggle('no-side')
   $('log-toggle').textContent = hidden ? 'Show' : 'Hide'
@@ -265,9 +279,16 @@ function showTab(name) {
   }
   if (name === 'agent' && !agentLoaded) {
     agentLoaded = true
-    fetch('/agent')
-      .then((res) => res.json())
+    fetch('/agent', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
       .then((agent) => {
+        if (agent?.id) {
+          AGENT = { id: agent.id, name: agent.name || AGENT.name }
+          window.AGENT = AGENT
+        }
         $('agent-body').replaceChildren()
         const pre = document.createElement('pre')
         pre.textContent = JSON.stringify(agent, null, 2)
@@ -292,28 +313,136 @@ async function addWorklet(ctx, code, name) {
   return new AudioWorkletNode(ctx, name)
 }
 
+async function fetchSessionConfig() {
+  // Fetch token and agent id together from the same server instance. This
+  // prevents a cached HTML page from sending an old embedded agent id with a
+  // fresh token.
+  const res = await fetch('/session-config', { cache: 'no-store' })
+  let body = {}
+  try {
+    body = await res.json()
+  } catch (_) {
+    // A non-JSON response is surfaced below as a normal bootstrap failure.
+  }
+
+  if (!res.ok) {
+    throw new Error(body.error || `voice bootstrap failed (HTTP ${res.status})`)
+  }
+  if (!body.token) {
+    throw new Error('voice bootstrap returned no session token')
+  }
+  if (!body.agent?.id) {
+    throw new Error('voice bootstrap returned no agent id')
+  }
+
+  AGENT = {
+    id: body.agent.id,
+    name: body.agent.name || AGENT.name || 'Dive Copilot',
+  }
+  window.AGENT = AGENT
+  return body
+}
+
+function describeSessionError(msg) {
+  const code = String(msg?.code || '').toLowerCase()
+  const message = String(msg?.message || '').trim()
+
+  if (code === 'agent_not_found') {
+    return 'agent unavailable (agent_not_found) — retry after deployment sync'
+  }
+  if (code === 'unauthorized') {
+    return 'voice authentication failed — check the AssemblyAI API key'
+  }
+  if (code === 'forbidden') {
+    return 'voice session is not permitted for this account'
+  }
+  if (code === 'agent_init_failed' || code === 'agent_timeout') {
+    return 'agent initialization failed — retry the call'
+  }
+  if (code === 'server_error') {
+    return 'voice service temporarily unavailable — retry the call'
+  }
+  return message || (code ? `voice session error (${code})` : 'voice session error')
+}
+
+function clearReadyTimeout() {
+  if (readyTimeout) clearTimeout(readyTimeout)
+  readyTimeout = null
+}
+
+function cleanupAudio() {
+  playback?.port.postMessage('stop')
+  capture?.disconnect?.()
+  playback?.disconnect?.()
+  mic?.getTracks().forEach((track) => track.stop())
+
+  const captureToClose = captureCtx
+  const playbackToClose = playbackCtx
+  captureCtx = playbackCtx = playback = capture = mic = null
+
+  captureToClose?.close?.().catch?.(() => {})
+  playbackToClose?.close?.().catch?.(() => {})
+}
+
+function resetControls({ retry = false } = {}) {
+  clearInterval(timer)
+  timer = null
+  clearPartials()
+  open.forEach((run) => paint(run, true))
+  open.clear()
+  $('btn').disabled = false
+  $('mic').disabled = false
+  $('btn').textContent = retry ? 'Retry call' : 'Start call'
+  $('btn').classList.remove('live')
+}
+
+function finishConnection({ state = 'idle', detail, retry = false } = {}) {
+  clearReadyTimeout()
+  sessionReady = false
+  currentSessionId = null
+  callStart = null
+  cleanupAudio()
+  resetControls({ retry })
+  setStatus(state, detail)
+}
+
 async function start() {
+  if (!['idle', 'error', 'disconnected'].includes(voiceState)) return
+
+  intentionalStop = false
+  sessionHadError = false
+  sessionReady = false
+  currentSessionId = null
+  clearReadyTimeout()
+
+  // Clean up any resources left by a previous failed attempt before opening a
+  // new session.
+  cleanupAudio()
+  if (ws && ws.readyState <= WebSocket.OPEN) {
+    try { ws.close() } catch (_) {}
+  }
+  ws = null
+
   $('btn').disabled = true
   $('mic').disabled = true
-  setStatus('connecting')
+  $('btn').textContent = 'Connecting…'
+  setStatus('connecting', 'connecting voice link')
 
   try {
-    // The API key never reaches the page; this token expires in 60 seconds.
-    const res = await fetch('/token')
-    if (!res.ok) {
-      setStatus('error', 'could not mint a token, check the API key')
-      reset()
-      return
-    }
-    const { token } = await res.json()
+    const { token } = await fetchSessionConfig()
 
-    // Two contexts, created in the click handler so Safari starts them.
+    // Two contexts, created from the user gesture path so Safari/Chrome can
+    // start audio without a separate permission interaction.
     captureCtx = new AudioContext({ sampleRate: WIRE_RATE })
     playbackCtx = new AudioContext({ sampleRate: WIRE_RATE })
     await Promise.all([captureCtx.resume(), playbackCtx.resume()])
 
     playback = await addWorklet(playbackCtx, PLAYBACK_WORKLET, 'playback')
     playback.connect(playbackCtx.destination)
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('microphone access is not available in this browser')
+    }
 
     const deviceId = $('mic').value
     mic = await navigator.mediaDevices.getUserMedia({
@@ -327,195 +456,160 @@ async function start() {
       },
     })
     listMics()
-    const capture = await addWorklet(captureCtx, CAPTURE_WORKLET, 'capture')
+
+    capture = await addWorklet(captureCtx, CAPTURE_WORKLET, 'capture')
     captureCtx.createMediaStreamSource(mic).connect(capture)
 
     const url = new URL('wss://agents.assemblyai.com/v1/ws')
     url.searchParams.set('token', token)
-    ws = new WebSocket(url)
-    let ready = false
+    const socket = new WebSocket(url)
+    ws = socket
 
     // The API takes base64 inside JSON, not binary frames.
     capture.port.onmessage = ({ data }) => {
-      if (!ready || ws.readyState !== 1) return
+      if (!sessionReady || ws !== socket || socket.readyState !== WebSocket.OPEN) return
       const bytes = new Uint8Array(data)
       let binary = ''
       for (let i = 0; i < bytes.length; i += 0x8000) {
         binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
       }
-      ws.send(JSON.stringify({ type: 'input.audio', audio: btoa(binary) }))
+      socket.send(JSON.stringify({ type: 'input.audio', audio: btoa(binary) }))
       logEvent('up', 'input.audio')
     }
 
-    // Everything about the agent lives server-side; the session just names it.
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'session.update', session: { agent_id: AGENT.id } }))
+    socket.onopen = () => {
+      if (ws !== socket) return
+
+      // A stored agent id is valid only on the first session.update. Mission
+      // speech context is therefore applied in a second update after ready.
+      socket.send(JSON.stringify({
+        type: 'session.update',
+        session: { agent_id: AGENT.id },
+      }))
       logEvent('up', 'session.update', AGENT.id)
+
+      readyTimeout = setTimeout(() => {
+        if (ws !== socket || sessionReady) return
+        sessionHadError = true
+        console.error('Voice session did not reach session.ready within timeout', {
+          agentId: AGENT.id,
+          timeoutMs: READY_TIMEOUT_MS,
+        })
+        try { socket.close() } catch (_) {}
+        finishConnection({
+          state: 'error',
+          detail: 'agent did not become ready — retry the call',
+          retry: true,
+        })
+        if (ws === socket) ws = null
+      }, READY_TIMEOUT_MS)
     }
-    ws.onmessage = ({ data }) => {
-      const msg = JSON.parse(data)
+
+    socket.onmessage = ({ data }) => {
+      if (ws !== socket) return
+
+      let msg
+      try {
+        msg = JSON.parse(data)
+      } catch (error) {
+        console.error('Could not parse Voice Agent event', error, data)
+        return
+      }
+
       switch (msg.type) {
         case 'session.ready': {
-  const speechContext =
-    window.DIVE_SPEECH_CONTEXT
+          clearReadyTimeout()
+          sessionReady = true
+          currentSessionId = msg.session_id || null
 
-  if (speechContext) {
-    const keyterms =
-      speechContext.keyterms ?? []
+          const speechContext = window.DIVE_SPEECH_CONTEXT
+          if (speechContext) {
+            const keyterms = speechContext.keyterms ?? []
+            const transcriptionPrompt = speechContext.transcription_prompt ?? ''
 
-    const transcriptionPrompt =
-      speechContext.transcription_prompt ?? ''
+            socket.send(JSON.stringify({
+              type: 'session.update',
+              session: {
+                input: {
+                  keyterms,
+                  transcription_prompt: transcriptionPrompt,
+                },
+              },
+            }))
 
-    ws.send(JSON.stringify({
-      type: 'session.update',
-      session: {
-        input: {
-          keyterms,
-          transcription_prompt:
-            transcriptionPrompt
+            logEvent(
+              'up',
+              'mission.speech_context',
+              `${keyterms.length} keyterms loaded`
+            )
+          }
+
+          callStart = Date.now()
+          timer = setInterval(tick, 1000)
+          tick()
+
+          setStatus('listening')
+          $('btn').disabled = false
+          $('btn').textContent = 'End call'
+          $('btn').classList.add('live')
+          $('mic').disabled = true
+
+          logEvent('down', msg.type, msg.session_id)
+          break
         }
-      }
-    }))
-
-    logEvent(
-      'up',
-      'mission.speech_context',
-      `${keyterms.length} keyterms loaded`
-    )
-  }
-
-  ready = true
-  callStart = Date.now()
-
-  timer =
-    setInterval(
-      tick,
-      1000
-    )
-
-  tick()
-
-  setStatus('listening')
-
-  $('btn').disabled = false
-  $('btn').textContent = 'End call'
-  $('btn').classList.add('live')
-
-  logEvent(
-    'down',
-    msg.type,
-    msg.session_id
-  )
-
-  break
-}
 
         case 'input.speech.started':
-            playback?.port.postMessage('stop')
+          playback?.port.postMessage('stop')
+          setStatus('listening')
+          logEvent('down', msg.type)
+          break
 
-            setStatus('listening')
-
-            logEvent(
-              'down',
-              msg.type
-            )
-
-            break
-         case 'input.speech.stopped':
-            startLatencyTurn()
-
-            setStatus('processing')
-
-            logEvent(
-              'down',
-              msg.type
-            )
-
-            break
+        case 'input.speech.stopped':
+          startLatencyTurn()
+          setStatus('processing')
+          logEvent('down', msg.type)
+          break
 
         case 'reply.started': {
-            const now = performance.now()
-
-            if (latencyTurn) {
-              if ( latencyTurn.firstReplyStartedAt == null) {
-                latencyTurn.firstReplyStartedAt =
-                  now
-              }
-              latencyTurn.lastReplyStartedAt = now
+          const now = performance.now()
+          if (latencyTurn) {
+            if (latencyTurn.firstReplyStartedAt == null) {
+              latencyTurn.firstReplyStartedAt = now
             }
-
-            setStatus('speaking')
-            logEvent('down', msg.type)
-            break
+            latencyTurn.lastReplyStartedAt = now
           }
+          setStatus('speaking')
+          logEvent('down', msg.type)
+          break
+        }
 
         case 'reply.audio': {
-
-            if (
-              latencyTurn &&
-              latencyTurn.firstAudioAt == null
-            ) {
-              latencyTurn.firstAudioAt =
-                performance.now()
-
-              printLatencyTurn()
-            }
-
-            const raw =
-              atob(msg.data)
-
-            const bytes =
-              new Uint8Array(
-                raw.length
-              )
-
-            for (
-              let i = 0;
-              i < raw.length;
-              i++
-            ) {
-              bytes[i] =
-                raw.charCodeAt(i)
-            }
-
-            playback?.port.postMessage(
-              bytes.buffer,
-              [bytes.buffer]
-            )
-
-            logEvent(
-              'down',
-              msg.type
-            )
-
-            break
+          if (latencyTurn && latencyTurn.firstAudioAt == null) {
+            latencyTurn.firstAudioAt = performance.now()
+            printLatencyTurn()
           }
 
+          const raw = atob(msg.data)
+          const bytes = new Uint8Array(raw.length)
+          for (let i = 0; i < raw.length; i++) {
+            bytes[i] = raw.charCodeAt(i)
+          }
+          playback?.port.postMessage(bytes.buffer, [bytes.buffer])
+          logEvent('down', msg.type)
+          break
+        }
+
         case 'reply.done':
-            if (latencyTurn) {
-              latencyTurn.replyDoneCount += 1
-
-              latencyTurn.replyDoneAt =
-                performance.now()
-            }
-
-            setStatus('listening')
-
-            if (
-              msg.status === 'interrupted'
-            ) {
-              playback?.port.postMessage(
-                'stop'
-              )
-            }
-
-            logEvent(
-              'down',
-              msg.type,
-              msg.status
-            )
-
-            break
+          if (latencyTurn) {
+            latencyTurn.replyDoneCount += 1
+            latencyTurn.replyDoneAt = performance.now()
+          }
+          setStatus('listening')
+          if (msg.status === 'interrupted') {
+            playback?.port.postMessage('stop')
+          }
+          logEvent('down', msg.type, msg.status)
+          break
 
         // text is the full transcript so far, so it replaces.
         case 'transcript.user.delta':
@@ -535,26 +629,12 @@ async function start() {
           break
 
         case 'transcript.user':
-            if (
-              latencyTurn &&
-              latencyTurn.transcriptAt == null
-            ) {
-              latencyTurn.transcriptAt =
-                performance.now()
-            }
-
-            addLine(
-              'you',
-              msg.text
-            )
-
-            logEvent(
-              'down',
-              msg.type,
-              msg.text
-            )
-
-            break
+          if (latencyTurn && latencyTurn.transcriptAt == null) {
+            latencyTurn.transcriptAt = performance.now()
+          }
+          addLine('you', msg.text)
+          logEvent('down', msg.type, msg.text)
+          break
 
         case 'transcript.agent':
           printedReply = msg.reply_id ?? printedReply
@@ -563,90 +643,138 @@ async function start() {
           break
 
         case 'tool.call': {
-            if (
-              latencyTurn &&
-              latencyTurn.toolCallAt == null
-            ) {
-              latencyTurn.toolCallAt =
-                performance.now()
-            }
-
-            const args =
-              JSON.stringify(
-                msg.arguments ?? {}
-              )
-
-            addLine(
-              'tool',
-              `${msg.name}(${args})`
-            )
-
-            logEvent(
-              'down',
-              msg.type,
-              `${msg.name} ${args}`
-            )
-
-            break
+          if (latencyTurn && latencyTurn.toolCallAt == null) {
+            latencyTurn.toolCallAt = performance.now()
           }
+          const args = JSON.stringify(msg.arguments ?? {})
+          addLine('tool', `${msg.name}(${args})`)
+          logEvent('down', msg.type, `${msg.name} ${args}`)
+          break
+        }
 
         case 'session.ended':
           logEvent('down', msg.type)
-          ws.close()
+          if (ws === socket) {
+            ws = null
+            finishConnection({ state: 'idle' })
+          }
+          try { socket.close() } catch (_) {}
           break
 
-        case 'session.error':
-          setStatus('error', msg.message)
+        case 'session.error': {
+          sessionHadError = true
+          const detail = describeSessionError(msg)
+          console.error('Voice Agent session error', {
+            code: msg.code,
+            message: msg.message,
+            agentId: AGENT.id,
+            sessionId: currentSessionId,
+          })
           logEvent('down', msg.type, `${msg.code}: ${msg.message}`)
+          if (ws === socket) {
+            ws = null
+            finishConnection({ state: 'error', detail, retry: true })
+          }
+          try { socket.close() } catch (_) {}
           break
+        }
 
         default:
           logEvent('down', msg.type)
       }
     }
 
-    ws.onclose = () => { setStatus('idle'); reset() }
-    ws.onerror = () => { setStatus('error', 'connection failed'); reset() }
+    socket.onclose = (event) => {
+      clearReadyTimeout()
+      if (ws !== socket) return
+      ws = null
+
+      if (intentionalStop) {
+        finishConnection({ state: 'idle' })
+        return
+      }
+      if (sessionHadError) {
+        // session.error already rendered a specific, actionable message.
+        cleanupAudio()
+        resetControls({ retry: true })
+        return
+      }
+
+      const detail = event.reason
+        ? `voice link closed: ${event.reason}`
+        : `voice link closed (${event.code})`
+      finishConnection({ state: 'disconnected', detail, retry: true })
+    }
+
+    socket.onerror = () => {
+      if (ws !== socket || intentionalStop || sessionHadError) return
+      sessionHadError = true
+      console.error('Voice WebSocket connection failed', { agentId: AGENT.id })
+      ws = null
+      finishConnection({
+        state: 'error',
+        detail: 'voice connection failed — retry the call',
+        retry: true,
+      })
+      try { socket.close() } catch (_) {}
+    }
   } catch (error) {
-    setStatus('error', error.message)
-    reset()
+    console.error('Could not start voice session', error)
+    if (ws) {
+      try { ws.close() } catch (_) {}
+      ws = null
+    }
+    finishConnection({
+      state: 'error',
+      detail: error?.message || 'could not start voice session',
+      retry: true,
+    })
   }
 }
 
 function stop() {
-  // Close cleanly so the session record ends, falling back to the socket.
-  if (ws?.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'session.end' }))
-    logEvent('up', 'session.end')
-    const socket = ws
-    setTimeout(() => { if (socket.readyState === 1) socket.close() }, 3000)
-  } else {
-    ws?.close()
-  }
-  playback?.port.postMessage('stop')
-  mic?.getTracks().forEach((track) => track.stop())
-  captureCtx?.close()
-  playbackCtx?.close()
-  captureCtx = playbackCtx = playback = mic = null
-  reset()
-  setStatus('idle')
-}
+  intentionalStop = true
+  clearReadyTimeout()
+  sessionReady = false
 
-function reset() {
-  clearInterval(timer)
-  clearPartials()
-  open.forEach((run) => paint(run, true))
-  open.clear()
-  $('btn').disabled = false
-  $('mic').disabled = false
-  $('btn').textContent = 'Start call'
-  $('btn').classList.remove('live')
+  const socket = ws
+  ws = null
+
+  if (socket?.readyState === WebSocket.OPEN) {
+    try {
+      socket.send(JSON.stringify({ type: 'session.end' }))
+      logEvent('up', 'session.end')
+    } catch (_) {}
+    // Give session.end a brief chance to flush, then close locally. Event
+    // handlers ignore this socket because it is no longer the active one.
+    setTimeout(() => {
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        try { socket.close() } catch (_) {}
+      }
+    }, 500)
+  } else if (socket) {
+    try { socket.close() } catch (_) {}
+  }
+
+  finishConnection({ state: 'idle' })
+  intentionalStop = false
 }
 
 function setStatus(state, detail) {
+  voiceState = state
   $('status').className = 'status ' + state
   $('status-text').textContent = detail || state
+  $('status').title = detail || state
 }
+
+// Small read-only hook for debugging a deployed build without exposing the
+// AssemblyAI API key or session token.
+window.DIVE_VOICE_DEBUG = () => ({
+  state: voiceState,
+  agent: { ...AGENT },
+  sessionId: currentSessionId,
+  socketState: ws?.readyState ?? null,
+})
 
 // $4.50 an hour, the list price at assemblyai.com/pricing. Billing is per
 // session minute, so the running figure is an estimate, not an invoice.

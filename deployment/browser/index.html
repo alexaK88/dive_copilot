@@ -145,6 +145,13 @@ h1 {
     color: var(--red);
 }
 
+.status.error::before {
+    background: var(--red);
+
+    box-shadow:
+        0 0 12px rgba(255, 114, 114, .7);
+}
+
 .meter {
     margin-left: 20px;
 
@@ -1199,6 +1206,14 @@ button.danger-control {
 
 .status.idle {
     color: var(--muted);
+}
+
+.status.disconnected {
+    color: var(--yellow);
+}
+
+.status.disconnected::before {
+    background: var(--yellow);
 }
 
 
@@ -2542,10 +2557,24 @@ function stopVoiceIfActive() {
             "btn"
         );
 
+    const voiceState =
+        typeof window.DIVE_VOICE_DEBUG === "function"
+            ? window.DIVE_VOICE_DEBUG().state
+            : null;
+
+    const shouldStop =
+        button?.classList.contains("live")
+        ||
+        button?.disabled
+        ||
+        (voiceState && ![
+            "idle",
+            "error",
+            "disconnected"
+        ].includes(voiceState));
+
     if (
-        button?.classList.contains(
-            "live"
-        )
+        shouldStop
         &&
         typeof stop === "function"
     ) {
