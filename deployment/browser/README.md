@@ -1,59 +1,95 @@
 # Browser
 
-Serves a page with a call button. Useful for iterating on an agent before putting it on a phone number.
+Serves the Dive Copilot browser client and opens AssemblyAI Voice Agent sessions with **inline session configuration**.
 
-## 1. Publish an agent
-
-```sh
-AGENT=http-tools python publish.py
-```
-
-## 2. Run it
+## Run it
 
 ```sh
-python deployment/browser/server.py
+AGENT=dive_copilot python deployment/browser/server.py
 ```
 
-Open http://localhost:3000 and start the call.
+Open `http://localhost:3000` and start the call.
 
-## 3. Iterate
+The browser deployment no longer requires a stored AssemblyAI agent or any `AGENT_ID` value.
 
-Edit the file in [agents/](../../agents/), run `python publish.py`, and start another call. When the agent behaves the way you want, see [deployment/telephony](../telephony/).
+## How it works
 
----
+`GET /session-config` returns two things in one non-cacheable response:
 
-## What it does
+- a fresh 60-second AssemblyAI Voice Agent token;
+- the inline session configuration built from `agents/<AGENT>.jsonc`.
 
-Publishes `agents/<AGENT>.jsonc` on startup if it has no id yet, so a fresh clone works with only an API key.
+The first WebSocket message is therefore:
 
-`GET /session-config` validates the currently published agent and mints a fresh 60-second AssemblyAI session token in the same non-cacheable response. The page uses the returned agent id rather than trusting the id embedded in cached HTML, which prevents stale-agent/session mismatches. The API key never reaches the page. `GET /token` remains available for diagnostics and backwards compatibility.
+```json
+{
+  "type": "session.update",
+  "session": {
+    "system_prompt": "...",
+    "greeting": "...",
+    "input": {"...": "..."},
+    "output": {"voice": "anna"},
+    "tools": []
+  }
+}
+```
 
-The page streams the microphone as 24 kHz PCM16 over `wss://agents.assemblyai.com/v1/ws`, plays the reply back, and discards queued audio when you interrupt. Capture and playback each run in their own AudioContext with a resampling worklet, so a browser that refuses to open a context at 24 kHz still sounds right.
+There is no `agent_id` lookup or stored-agent binding in the browser flow.
 
-The side pane has two tabs. Events lists every websocket frame in both directions, with audio runs collapsed into counts. Agent shows the published agent as the API stored it, read only, served by `GET /agent`. Tool header values and LLM keys are stripped from that response, but the system prompt is in it, so on a public deployment anyone opening the page can read it.
+The `@file:prompts/...` prompt reference used by the agent file is resolved by `server.py` before the session config is sent to the browser. Mission-specific keyterms and transcription context are merged into the **first** `session.update`, before `session.ready`.
 
-The first session message contains only `{ agent_id }`. Prompt, voice, tools and turn detection are read from the stored agent, which is why the browser and the phone behave the same. Mission-specific speech context is applied in a second `session.update` only after `session.ready`.
+## Tool execution
 
-The client keeps an explicit connection lifecycle (`idle`, `connecting`, `listening`, `processing`, `speaking`, `error`, `disconnected`). Failed initialization no longer silently falls back to `idle`: the error stays visible and the call button becomes **Retry call**. A 15-second readiness timeout also catches sessions that open a WebSocket but never become ready.
+The agent's HTTP tool URLs stay server-side.
+
+For inline sessions, the browser registers tools as function tools. When AssemblyAI emits `tool.call`, `app.js` sends the tool name and arguments to:
+
+```text
+POST /tool
+```
+
+`server.py` looks up the original `http` configuration in `agents/dive_copilot.jsonc`, calls the mission backend, and returns the result. The browser then sends `tool.result` back to AssemblyAI after the corresponding reply phase completes.
+
+This keeps backend endpoints/headers out of the Voice Agent session schema and avoids dependence on stored-agent HTTP tool execution.
+
+## Voice lifecycle
+
+The client uses explicit states:
+
+```text
+idle → connecting → listening → processing → speaking
+```
+
+with `error` and `disconnected` recovery states.
+
+It also includes:
+
+- a 15-second `session.ready` timeout;
+- duplicate-session prevention;
+- microphone and AudioContext cleanup;
+- clean `session.end` handling;
+- retry behavior after failures;
+- `DIVE_VOICE_DEBUG()` for safe deployed-session diagnostics.
 
 ## Environment
 
-| | |
+| Variable | Purpose |
 | --- | --- |
-| `ASSEMBLYAI_API_KEY` | Required. Stays in this process. |
-| `AGENT` | Which file in `agents/` to serve. Defaults to `minimal`. |
-| `AGENT_ID_<NAME>` | The id `python publish.py` saved for that file. Connected to as it is. |
-| `AGENT_ID` | Overrides the per-file keys, for serving one specific agent. |
-| `PORT` | Defaults to 3000, moves to the next free port if taken. |
+| `ASSEMBLYAI_API_KEY` | Required. Stays on the server. |
+| `AGENT` | Agent configuration file to load. Defaults to `dive_copilot`. |
+| `PORT` | Render supplies this automatically; local default is 3000. |
 
-## Editing the page
-
-The server is [server.py](server.py), the page is [index.html](index.html) and the client is [app.js](app.js), all served as they are. Save and refresh.
+`AGENT_ID` and `AGENT_ID_DIVE_COPILOT` are intentionally ignored by this browser deployment.
 
 ## Hosting
 
-`render.yaml` is configured for one-click deploys. Render prompts for `ASSEMBLYAI_API_KEY` during Blueprint creation, sets `AGENT=dive_copilot`, and leaves `AGENT_ID` empty. Render sets `PORT` itself.
+`render.yaml` configures the service with only:
 
-For the hosted Dive Copilot deployment, leave `AGENT_ID` empty unless you intentionally want to pin one specific AssemblyAI agent. With no id set, the service publishes/updates the `Dive Copilot` agent by name on boot and returns that live id to the browser through `/session-config`. This avoids carrying a stale local `.env` agent id into the hosted session.
+```text
+ASSEMBLYAI_API_KEY
+AGENT=dive_copilot
+```
 
-Anyone with the URL can start sessions billed to your key.
+A deleted or stale stored AssemblyAI agent can therefore no longer prevent Render from starting.
+
+Anyone with the public browser URL can start sessions billed to the configured AssemblyAI account.

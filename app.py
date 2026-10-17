@@ -12,7 +12,7 @@ from backend.missions import (
 )
 from backend.services.mission_service import MissionService
 
-app = FastAPI(title="Dive Copilot API", version="0.2.0")
+app = FastAPI(title="Dive Copilot API", version="0.3.0")
 
 # Fine for the current public prototype. Lock this down to the deployed frontend
 # origin before treating the service as production infrastructure.
@@ -83,6 +83,8 @@ def health():
         "status": "ok",
         "api_version": app.version,
         "active_mission_id": mission_service.active_mission_key,
+        "session_id": mission_service.session_id,
+        "persistence": "sqlalchemy",
     }
 
 

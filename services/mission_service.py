@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import time
 from datetime import datetime, timezone
 from threading import RLock
 from typing import Any
@@ -21,27 +20,49 @@ from backend.domain.models import (
     SurfaceReplyRecord,
 )
 from backend.missions import DEFAULT_MISSION_KEY, build_mission
+from backend.persistence.repository import MissionRepository
 
 
 class MissionService:
-    """Authoritative in-memory runtime for the active Dive Copilot mission.
+    """Authoritative runtime for the active Dive Copilot mission.
 
-    The HTTP API and the voice-agent tools both operate through this service.
-    This keeps state transitions and event creation in one place instead of
-    spreading mutation across route handlers.
+    State transitions live here; durable storage is delegated to
+    MissionRepository. The public API therefore stays independent from the
+    database implementation.
     """
 
-    def __init__(self, mission_key: str = DEFAULT_MISSION_KEY) -> None:
+    def __init__(
+        self,
+        mission_key: str = DEFAULT_MISSION_KEY,
+        *,
+        repository: MissionRepository | None = None,
+    ) -> None:
         self._lock = RLock()
+        self._repository = repository or MissionRepository()
         self._events = EventStore()
+
         self.active_mission_key = mission_key
+        self.session_id: int
         self.mission: Mission
         self.position: Position
         self.observations: list[Observation]
         self.surface_messages: list[SurfaceMessageRecord]
         self.surface_replies: list[SurfaceReplyRecord]
-        self._dive_started_at = time.monotonic()
-        self.reset(mission_key)
+        self._dive_started_at: datetime
+
+        restored = self._repository.load_active()
+        if restored is None:
+            self.reset(mission_key)
+        else:
+            self.session_id = restored.session_id
+            self.active_mission_key = restored.mission_key
+            self.mission = restored.mission
+            self.position = restored.position
+            self.observations = restored.observations
+            self.surface_messages = restored.surface_messages
+            self.surface_replies = restored.surface_replies
+            self._dive_started_at = restored.started_at
+            self._events.load(restored.events)
 
     def reset(self, mission_key: str) -> None:
         with self._lock:
@@ -54,9 +75,15 @@ class MissionService:
             self.observations = []
             self.surface_messages = []
             self.surface_replies = []
-            self._dive_started_at = time.monotonic()
-
+            self._dive_started_at = datetime.now(timezone.utc)
             self._events.clear()
+
+            self.session_id = self._repository.start_session(
+                mission_key=mission_key,
+                mission=self.mission,
+                position=self.position,
+                started_at=self._dive_started_at,
+            )
             self._record_event(
                 EventType.MISSION_STARTED,
                 actor="system",
@@ -76,12 +103,14 @@ class MissionService:
         actor: EventActor,
         payload: dict[str, Any] | None = None,
     ) -> MissionEvent:
-        return self._events.append(
+        event = self._events.append(
             event_type=event_type,
             actor=actor,
             mission_id=self.mission.mission_id,
             payload=payload,
         )
+        self._repository.add_event(self.session_id, event)
+        return event
 
     def mission_payload(self) -> dict[str, Any]:
         with self._lock:
@@ -96,7 +125,10 @@ class MissionService:
 
     def current_dive_state(self) -> DiveState:
         with self._lock:
-            elapsed = time.monotonic() - self._dive_started_at
+            elapsed = max(
+                0.0,
+                (datetime.now(timezone.utc) - self._dive_started_at).total_seconds(),
+            )
             base_depth = self.mission.simulation.depth_m
             depth = round(base_depth + 0.2 * math.sin(elapsed / 7), 1)
             current_task = self.current_task()
@@ -124,6 +156,7 @@ class MissionService:
                     }
 
                 task.completed = True
+                self._repository.save_mission(self.session_id, self.mission)
                 self._record_event(
                     EventType.TASK_COMPLETED,
                     actor="diver",
@@ -171,6 +204,7 @@ class MissionService:
                 marker=state.marker,
             )
             self.observations.append(item)
+            self._repository.add_observation(self.session_id, item)
             self._record_event(
                 EventType.OBSERVATION_CREATED,
                 actor="diver",
@@ -229,6 +263,7 @@ class MissionService:
                     changes=changes,
                 )
             )
+            self._repository.update_observation(self.session_id, target)
 
             self._record_event(
                 EventType.OBSERVATION_CORRECTED,
@@ -257,6 +292,7 @@ class MissionService:
 
             current = self.position.model_dump(mode="json")
             if current != previous:
+                self._repository.save_position(self.session_id, self.position)
                 self._record_event(
                     EventType.POSITION_CONFIRMED,
                     actor="diver",
@@ -304,6 +340,7 @@ class MissionService:
                 status="pending" if message_type == "question" else "sent",
             )
             self.surface_messages.append(item)
+            self._repository.add_surface_message(self.session_id, item)
             self._record_event(
                 EventType.SURFACE_QUESTION_SENT
                 if message_type == "question"
@@ -333,11 +370,16 @@ class MissionService:
                 in_reply_to=in_reply_to,
             )
             self.surface_replies.append(item)
+            self._repository.add_surface_reply(self.session_id, item)
 
             if in_reply_to is not None:
                 for surface_message in self.surface_messages:
                     if surface_message.id == in_reply_to:
                         surface_message.status = "answered"
+                        self._repository.update_surface_message(
+                            self.session_id,
+                            surface_message,
+                        )
                         break
 
             self._record_event(

@@ -1,30 +1,30 @@
-import math
 import time
-from datetime import datetime, timezone
-from http.client import HTTPException
+from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend.missions import (DEFAULT_MISSION_KEY, build_mission, get_mission_speech_context, list_missions)
+from backend.missions import (
+    DEFAULT_MISSION_KEY,
+    get_mission_speech_context,
+    list_missions,
+)
+from backend.services.mission_service import MissionService
 
-app = FastAPI(title="Dive Copilot API")
+app = FastAPI(title="Dive Copilot API", version="0.3.0")
 
-# Fine for our local hackathon demo.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
+# Fine for the current public prototype. Lock this down to the deployed frontend
+# origin before treating the service as production infrastructure.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-DIVE_STARTED_AT = time.time()
-ACTIVE_MISSION_KEY = DEFAULT_MISSION_KEY
-MISSION = build_mission(ACTIVE_MISSION_KEY)
-
-DIVE_CONTEXT = {
-    "transect": MISSION["transect"],
-    "marker": MISSION["start_marker"]}
-
-OBSERVATIONS = []
-SURFACE_MESSAGES = []
-SURFACE_REPLIES = []
+mission_service = MissionService(DEFAULT_MISSION_KEY)
 
 
 class MissionSelection(BaseModel):
@@ -68,302 +68,202 @@ class ObservationCorrection(BaseModel):
     count: int | None = None
 
 
-def get_current_task():
-    for task in MISSION["tasks"]:
-        if not task["completed"]:
-            return task
+@app.middleware("http")
+async def measure_request_time(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    print(f"[LATENCY] {request.method} {request.url.path} {elapsed_ms:.1f} ms")
+    return response
 
-    return None
 
-
-@app.get("/api/surface/messages")
-def get_surface_messages():
+@app.get("/health")
+def health():
     return {
-        "count": len(SURFACE_MESSAGES),
-        "messages": SURFACE_MESSAGES}
-
-
-@app.post("/api/surface/messages")
-def send_surface_message(surface_message: SurfaceMessage):
-    state = current_dive_state()
-
-    item = {
-        "id": len(SURFACE_MESSAGES) + 1,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "message": surface_message.message,
-        "priority": surface_message.priority,
-        "depth_m": state["depth_m"],
-        "transect": state["transect"],
-        "marker": state["marker"]}
-
-    SURFACE_MESSAGES.append(item)
-
-    return {
-        "status": "sent",
-        "message": item}
+        "status": "ok",
+        "api_version": app.version,
+        "active_mission_id": mission_service.active_mission_key,
+        "session_id": mission_service.session_id,
+        "persistence": "sqlalchemy",
+    }
 
 
 @app.get("/api/missions")
 def get_available_missions():
     return {
         "missions": list_missions(),
-        "active_mission_id": ACTIVE_MISSION_KEY}
+        "active_mission_id": mission_service.active_mission_key,
+    }
 
 
 @app.post("/api/mission/select")
 def select_mission(selection: MissionSelection):
     try:
-        reset_simulation(selection.mission_id)
-
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Mission not found")
+        mission_service.reset(selection.mission_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Mission not found") from exc
 
     return {
         "status": "selected",
-        "mission_id": ACTIVE_MISSION_KEY,
-        "mission": MISSION,
-        "dive_state": current_dive_state(),
-
-        "speech_context": get_mission_speech_context(ACTIVE_MISSION_KEY), }
-
-
-@app.middleware("http")
-async def measure_request_time(request: Request, call_next, ):
-    start = time.perf_counter()
-
-    response = await call_next(request)
-
-    elapsed_ms = (time.perf_counter() - start) * 1000
-
-    print(f"[LATENCY] "
-          f"{request.method} "
-          f"{request.url.path} "
-          f"{elapsed_ms:.1f} ms")
-
-    return response
-
-
-@app.post("/api/tasks/complete")
-def complete_task(completion: TaskCompletion):
-    for task in MISSION["tasks"]:
-        if task["id"] == completion.task_id:
-
-            if task["completed"]:
-                return {
-                    "status": "already_completed",
-                    "task": task,
-                    "next_task": get_current_task()}
-
-            task["completed"] = True
-
-            return {
-                "status": "completed",
-                "task": task,
-                "next_task": get_current_task()}
-
-    return {
-        "status": "error",
-        "message": f"Task {completion.task_id} was not found."}
-
-
-def current_dive_state():
-    elapsed = time.time() - DIVE_STARTED_AT
-    base_depth = MISSION["simulation"]["depth_m"]
-
-    depth = round(base_depth + 0.2 * math.sin(elapsed / 7), 1)
-
-    return {
-        "depth_m": depth,
-        "dive_time_seconds": int(elapsed),
-        "transect": DIVE_CONTEXT["transect"],
-        "marker": DIVE_CONTEXT["marker"],
-        "connection": "connected",
-        "current_task": get_current_task()}
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok"}
+        "mission_id": mission_service.active_mission_key,
+        "mission": mission_service.mission_payload(),
+        "dive_state": mission_service.current_dive_state().model_dump(mode="json"),
+        "speech_context": get_mission_speech_context(
+            mission_service.active_mission_key
+        ),
+    }
 
 
 @app.get("/api/mission")
 def get_mission():
-    return MISSION
+    return mission_service.mission_payload()
 
 
 @app.get("/api/dive-state")
 def get_dive_state():
-    return current_dive_state()
-
-
-@app.get("/api/observations")
-def get_observations():
-    return {
-        "count": len(OBSERVATIONS),
-        "observations": OBSERVATIONS}
-
-
-@app.post("/api/observations")
-def log_observation(observation: ObservationIn):
-    state = current_dive_state()
-
-    item = {
-        "id": len(OBSERVATIONS) + 1,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "category": observation.category,
-        "description": observation.description,
-        "count": observation.count,
-        "depth_m": state["depth_m"],
-        "transect": state["transect"],
-        "marker": state["marker"]}
-
-    OBSERVATIONS.append(item)
-
-    return {
-        "status": "recorded",
-        "observation": item}
-
-
-@app.post("/api/observations/correct")
-def correct_observation(correction: ObservationCorrection):
-    if not OBSERVATIONS:
-        return {
-            "status": "error",
-            "message": "No observations exist to correct."}
-
-    # If no ID is supplied, correct the most recent observation.
-    target = None
-
-    if correction.observation_id is None:
-        target = OBSERVATIONS[-1]
-    else:
-        for observation in OBSERVATIONS:
-            if observation["id"] == correction.observation_id:
-                target = observation
-                break
-
-    if target is None:
-        return {
-            "status": "error",
-            "message": f"Observation {correction.observation_id} was not found."}
-
-    changes = correction.model_dump(exclude_unset=True, exclude={"observation_id"})
-
-    if not changes:
-        return {
-            "status": "error",
-            "message": "No correction values were provided."}
-
-    # Keep a small audit trail.
-    previous = {
-        "category": target.get("category"),
-        "description": target.get("description"),
-        "count": target.get("count")}
-
-    for key, value in changes.items():
-        target[key] = value
-
-    target["corrected_at"] = datetime.now(timezone.utc).isoformat()
-
-    target.setdefault("correction_history", []).append({
-        "timestamp": target["corrected_at"],
-        "previous": previous,
-        "changes": changes})
-
-    return {
-        "status": "corrected",
-        "observation": target}
+    return mission_service.current_dive_state().model_dump(mode="json")
 
 
 @app.post("/api/dive-state/position")
 def update_dive_position(update: DivePositionUpdate):
-    if update.transect is not None:
-        DIVE_CONTEXT["transect"] = update.transect
-
-    if update.marker is not None:
-        DIVE_CONTEXT["marker"] = update.marker
-
+    position = mission_service.update_position(
+        transect=update.transect,
+        marker=update.marker,
+    )
     return {
         "status": "updated",
-        "position": {
-            "transect": DIVE_CONTEXT["transect"],
-            "marker": DIVE_CONTEXT["marker"]}}
+        "position": position.model_dump(mode="json"),
+    }
+
+
+@app.get("/api/observations")
+def get_observations():
+    observations = mission_service.list_observations()
+    return {
+        "count": len(observations),
+        "observations": observations,
+    }
+
+
+@app.post("/api/observations")
+def log_observation(observation: ObservationIn):
+    item = mission_service.log_observation(
+        category=observation.category,
+        description=observation.description,
+        count=observation.count,
+    )
+    return {
+        "status": "recorded",
+        "observation": item.model_dump(mode="json"),
+    }
+
+
+@app.post("/api/observations/correct")
+def correct_observation(correction: ObservationCorrection):
+    changes: dict[str, Any] = correction.model_dump(
+        exclude_unset=True,
+        exclude={"observation_id"},
+    )
+    status, observation, message = mission_service.correct_observation(
+        observation_id=correction.observation_id,
+        changes=changes,
+    )
+
+    if status == "error":
+        return {"status": "error", "message": message}
+
+    return {
+        "status": "corrected",
+        "observation": observation.model_dump(mode="json") if observation else None,
+    }
+
+
+@app.post("/api/tasks/complete")
+def complete_task(completion: TaskCompletion):
+    return mission_service.complete_task(completion.task_id)
+
+
+@app.get("/api/surface/messages")
+def get_surface_messages():
+    messages = mission_service.list_surface_messages()
+    return {
+        "count": len(messages),
+        "messages": messages,
+    }
+
+
+@app.post("/api/surface/messages")
+def send_surface_message(surface_message: SurfaceMessage):
+    item = mission_service.send_surface_message(
+        message=surface_message.message,
+        priority=surface_message.priority,
+    )
+    return {
+        "status": "sent",
+        "message": item.model_dump(mode="json"),
+    }
 
 
 @app.post("/api/surface/questions")
 def ask_surface(question: SurfaceQuestion):
-    state = current_dive_state()
-
-    item = {
-        "id": len(SURFACE_MESSAGES) + 1,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "type": "question",
-        "message": question.question,
-        "priority": question.priority,
-        "depth_m": state["depth_m"],
-        "transect": state["transect"],
-        "marker": state["marker"],
-        "status": "pending"}
-
-    SURFACE_MESSAGES.append(item)
-
+    item = mission_service.ask_surface(
+        question=question.question,
+        priority=question.priority,
+    )
     return {
         "status": "sent",
-        "request": item}
+        "request": item.model_dump(mode="json"),
+    }
 
 
 @app.post("/api/surface/replies")
 def send_surface_reply(reply: SurfaceReply):
-    item = {
-        "id": len(SURFACE_REPLIES) + 1,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "message": reply.message,
-        "in_reply_to": reply.in_reply_to}
-
-    SURFACE_REPLIES.append(item)
-
-    if reply.in_reply_to is not None:
-        for message in SURFACE_MESSAGES:
-            if message["id"] == reply.in_reply_to:
-                message["status"] = "answered"
-                break
-
+    item = mission_service.send_surface_reply(
+        message=reply.message,
+        in_reply_to=reply.in_reply_to,
+    )
     return {
         "status": "received",
-        "reply": item}
+        "reply": item.model_dump(mode="json"),
+    }
 
 
 @app.get("/api/surface/replies")
 def get_surface_replies():
+    messages = mission_service.list_surface_replies(limit=10)
     return {
-        "count": len(SURFACE_REPLIES),
-        "messages": SURFACE_REPLIES[-10:]}
+        "count": len(mission_service.surface_replies),
+        "messages": messages,
+    }
 
 
 @app.get("/api/surface/questions")
 def get_surface_questions():
-    questions = [item for item in SURFACE_MESSAGES if item.get("type") == "question"]
-
+    questions = mission_service.list_surface_questions(limit=10)
+    total_questions = sum(
+        1 for item in mission_service.surface_messages if item.type == "question"
+    )
     return {
-        "count": len(questions),
-        "questions": questions[-10:]}
+        "count": total_questions,
+        "questions": questions,
+    }
 
 
-def reset_simulation(mission_key: str) -> None:
-    global ACTIVE_MISSION_KEY
-    global MISSION
-    global DIVE_CONTEXT
-    global DIVE_STARTED_AT
+@app.get("/api/events")
+def get_events(limit: int = Query(default=100, ge=1, le=500)):
+    events = mission_service.events(limit=limit)
+    return {
+        "count": len(events),
+        "events": events,
+    }
 
-    ACTIVE_MISSION_KEY = mission_key
-    MISSION = build_mission(mission_key)
-    DIVE_CONTEXT = {
-        "transect": MISSION["transect"],
-        "marker": MISSION["start_marker"]}
 
-    DIVE_STARTED_AT = time.time()
-
-    OBSERVATIONS.clear()
-    SURFACE_MESSAGES.clear()
-    SURFACE_REPLIES.clear()
+@app.get("/api/mission/timeline")
+def get_mission_timeline(limit: int = Query(default=100, ge=1, le=500)):
+    """Human/UI-facing alias for the structured mission event stream."""
+    events = mission_service.events(limit=limit)
+    return {
+        "mission_id": mission_service.mission.mission_id,
+        "count": len(events),
+        "events": events,
+    }

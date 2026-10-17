@@ -7,20 +7,26 @@ from backend.domain.models import EventActor, EventType, MissionEvent
 
 
 class EventStore:
-    """Small in-memory append-only event store for one active mission session.
+    """In-process event view for the active mission session.
 
-    Persistence comes in a later V2 phase. Keeping event creation behind this
-    class means the API and mission service do not need to change when the
-    backing store moves to SQLite/PostgreSQL.
+    The authoritative durable copy is written through MissionRepository. This
+    small store keeps event sequencing and recent-event reads fast while the
+    service is running, and can be rehydrated after a restart.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, events: list[MissionEvent] | None = None) -> None:
         self._events: list[MissionEvent] = []
         self._next_id = 1
+        if events:
+            self.load(events)
 
     def clear(self) -> None:
         self._events.clear()
         self._next_id = 1
+
+    def load(self, events: list[MissionEvent]) -> None:
+        self._events = list(events)
+        self._next_id = max((event.id for event in self._events), default=0) + 1
 
     def append(
         self,

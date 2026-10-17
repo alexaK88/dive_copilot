@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id)
 // The rate the API speaks. Both worklets resample, since a browser may
 // ignore the rate an AudioContext asks for.
 const WIRE_RATE = 24_000
-let AGENT = window.AGENT || { id: '', name: 'Dive Copilot' }
+let AGENT = window.AGENT || { name: 'Dive Copilot', mode: 'inline' }
 
 // Scratch buffers are reused: allocating on the audio thread causes glitches.
 const CAPTURE_WORKLET = `
@@ -226,6 +226,8 @@ let currentSessionId = null
 let readyTimeout = null
 let intentionalStop = false
 let sessionHadError = false
+let pendingToolResults = []
+let replyIdle = false
 
 const READY_TIMEOUT_MS = 15_000
 
@@ -285,8 +287,11 @@ function showTab(name) {
         return res.json()
       })
       .then((agent) => {
-        if (agent?.id) {
-          AGENT = { id: agent.id, name: agent.name || AGENT.name }
+        if (agent?.name) {
+          AGENT = {
+            name: agent.name || AGENT.name,
+            mode: agent.mode || 'inline',
+          }
           window.AGENT = AGENT
         }
         $('agent-body').replaceChildren()
@@ -314,9 +319,8 @@ async function addWorklet(ctx, code, name) {
 }
 
 async function fetchSessionConfig() {
-  // Fetch token and agent id together from the same server instance. This
-  // prevents a cached HTML page from sending an old embedded agent id with a
-  // fresh token.
+  // The server returns a short-lived token and the inline Voice Agent session
+  // configuration together. No stored AssemblyAI agent id is involved.
   const res = await fetch('/session-config', { cache: 'no-store' })
   let body = {}
   try {
@@ -331,16 +335,79 @@ async function fetchSessionConfig() {
   if (!body.token) {
     throw new Error('voice bootstrap returned no session token')
   }
-  if (!body.agent?.id) {
-    throw new Error('voice bootstrap returned no agent id')
+  if (!body.session || typeof body.session !== 'object') {
+    throw new Error('voice bootstrap returned no inline session configuration')
   }
 
   AGENT = {
-    id: body.agent.id,
-    name: body.agent.name || AGENT.name || 'Dive Copilot',
+    name: body.agent?.name || AGENT.name || 'Dive Copilot',
+    mode: 'inline',
   }
   window.AGENT = AGENT
   return body
+}
+
+function buildSessionConfig(baseSession) {
+  const session = JSON.parse(JSON.stringify(baseSession || {}))
+  const speechContext = window.DIVE_SPEECH_CONTEXT
+  if (speechContext) {
+    session.input = session.input || {}
+    session.input.keyterms = speechContext.keyterms ?? session.input.keyterms ?? []
+    session.input.transcription_prompt =
+      speechContext.transcription_prompt ?? session.input.transcription_prompt ?? ''
+  }
+  return session
+}
+
+async function executeToolCall(msg) {
+  const res = await fetch('/tool', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: msg.name,
+      arguments: msg.arguments ?? {},
+    }),
+  })
+
+  let body = {}
+  try {
+    body = await res.json()
+  } catch (_) {
+    body = { ok: false, error: `tool proxy returned HTTP ${res.status}` }
+  }
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: body.error || `tool proxy failed (HTTP ${res.status})`,
+    }
+  }
+  return body
+}
+
+function sendToolResult(socket, item) {
+  if (ws !== socket || socket.readyState !== WebSocket.OPEN) return
+  const payload = item.response?.ok
+    ? item.response.result
+    : {
+        ok: false,
+        error: item.response?.error || 'tool execution failed',
+        status: item.response?.status,
+      }
+
+  socket.send(JSON.stringify({
+    type: 'tool.result',
+    call_id: item.callId,
+    result: JSON.stringify(payload ?? {}),
+  }))
+  logEvent('up', 'tool.result', `${item.name} ${item.callId}`)
+}
+
+function flushToolResults(socket) {
+  if (!replyIdle || ws !== socket || socket.readyState !== WebSocket.OPEN) return
+  const ready = pendingToolResults.filter((item) => item.response)
+  pendingToolResults = pendingToolResults.filter((item) => !item.response)
+  ready.forEach((item) => sendToolResult(socket, item))
 }
 
 function describeSessionError(msg) {
@@ -413,6 +480,8 @@ async function start() {
   sessionHadError = false
   sessionReady = false
   currentSessionId = null
+  pendingToolResults = []
+  replyIdle = false
   clearReadyTimeout()
 
   // Clean up any resources left by a previous failed attempt before opening a
@@ -429,7 +498,8 @@ async function start() {
   setStatus('connecting', 'connecting voice link')
 
   try {
-    const { token } = await fetchSessionConfig()
+    const { token, session: baseSession } = await fetchSessionConfig()
+    const inlineSession = buildSessionConfig(baseSession)
 
     // Two contexts, created from the user gesture path so Safari/Chrome can
     // start audio without a separate permission interaction.
@@ -480,19 +550,21 @@ async function start() {
     socket.onopen = () => {
       if (ws !== socket) return
 
-      // A stored agent id is valid only on the first session.update. Mission
-      // speech context is therefore applied in a second update after ready.
+      // Inline configuration is the first message on the socket. This avoids
+      // stored-agent lookup entirely and includes mission-specific speech
+      // context before the first user utterance.
       socket.send(JSON.stringify({
         type: 'session.update',
-        session: { agent_id: AGENT.id },
+        session: inlineSession,
       }))
-      logEvent('up', 'session.update', AGENT.id)
+      logEvent('up', 'session.update', `${AGENT.name} (inline)`)
 
       readyTimeout = setTimeout(() => {
         if (ws !== socket || sessionReady) return
         sessionHadError = true
         console.error('Voice session did not reach session.ready within timeout', {
-          agentId: AGENT.id,
+          agent: AGENT.name,
+          mode: AGENT.mode,
           timeoutMs: READY_TIMEOUT_MS,
         })
         try { socket.close() } catch (_) {}
@@ -522,28 +594,6 @@ async function start() {
           sessionReady = true
           currentSessionId = msg.session_id || null
 
-          const speechContext = window.DIVE_SPEECH_CONTEXT
-          if (speechContext) {
-            const keyterms = speechContext.keyterms ?? []
-            const transcriptionPrompt = speechContext.transcription_prompt ?? ''
-
-            socket.send(JSON.stringify({
-              type: 'session.update',
-              session: {
-                input: {
-                  keyterms,
-                  transcription_prompt: transcriptionPrompt,
-                },
-              },
-            }))
-
-            logEvent(
-              'up',
-              'mission.speech_context',
-              `${keyterms.length} keyterms loaded`
-            )
-          }
-
           callStart = Date.now()
           timer = setInterval(tick, 1000)
           tick()
@@ -559,6 +609,7 @@ async function start() {
         }
 
         case 'input.speech.started':
+          replyIdle = false
           playback?.port.postMessage('stop')
           setStatus('listening')
           logEvent('down', msg.type)
@@ -571,6 +622,7 @@ async function start() {
           break
 
         case 'reply.started': {
+          replyIdle = false
           const now = performance.now()
           if (latencyTurn) {
             if (latencyTurn.firstReplyStartedAt == null) {
@@ -604,9 +656,15 @@ async function start() {
             latencyTurn.replyDoneCount += 1
             latencyTurn.replyDoneAt = performance.now()
           }
+          replyIdle = true
           setStatus('listening')
           if (msg.status === 'interrupted') {
             playback?.port.postMessage('stop')
+            // Match AssemblyAI's recommended interactive-tool behavior: an
+            // interrupted reply abandons pending results from that reply.
+            pendingToolResults = []
+          } else {
+            flushToolResults(socket)
           }
           logEvent('down', msg.type, msg.status)
           break
@@ -649,6 +707,22 @@ async function start() {
           const args = JSON.stringify(msg.arguments ?? {})
           addLine('tool', `${msg.name}(${args})`)
           logEvent('down', msg.type, `${msg.name} ${args}`)
+
+          const item = {
+            callId: msg.call_id,
+            name: msg.name,
+            response: null,
+          }
+          pendingToolResults.push(item)
+          executeToolCall(msg)
+            .then((response) => {
+              item.response = response
+              flushToolResults(socket)
+            })
+            .catch((error) => {
+              item.response = { ok: false, error: error?.message || 'tool execution failed' }
+              flushToolResults(socket)
+            })
           break
         }
 
@@ -667,7 +741,8 @@ async function start() {
           console.error('Voice Agent session error', {
             code: msg.code,
             message: msg.message,
-            agentId: AGENT.id,
+            agent: AGENT.name,
+            mode: AGENT.mode,
             sessionId: currentSessionId,
           })
           logEvent('down', msg.type, `${msg.code}: ${msg.message}`)
@@ -709,7 +784,7 @@ async function start() {
     socket.onerror = () => {
       if (ws !== socket || intentionalStop || sessionHadError) return
       sessionHadError = true
-      console.error('Voice WebSocket connection failed', { agentId: AGENT.id })
+      console.error('Voice WebSocket connection failed', { agent: AGENT.name, mode: AGENT.mode })
       ws = null
       finishConnection({
         state: 'error',
